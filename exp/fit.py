@@ -38,7 +38,7 @@ def fit(
             optimizer.zero_grad()
             with torch.autograd.detect_anomaly():
                 output = model(x)
-                loss = torch.nn.functional.binary_cross_entropy(output, y)
+                loss = torch.nn.functional.binary_cross_entropy_with_logits(output, y)
                 loss.backward()
                 for name, param in model.named_parameters():
                     if param.grad is not None:

@@ -76,9 +76,9 @@ class GatingNetwork(nn.Module):
                 torch.nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        with torch.no_grad():
-            pre_softmax_activations = self.gate[:-1](x)
-        print(f"Pre-softmax activations: {pre_softmax_activations}")
+        # with torch.no_grad():
+        #     pre_softmax_activations = self.gate[:-1](x)
+        # print(f"Pre-softmax activations: {pre_softmax_activations}")
         return self.gate(x)
 
 

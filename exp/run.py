@@ -14,7 +14,7 @@ class MoEAnomalyDetection:
         num_experts: int = 8,
         epochs: int = 50,
         batch_num: int = 20,
-        batch_size: int = 512,
+        batch_size: int = 128,
         lr: float = 1e-4,
         weight_decay: float = 1e-5,
     ):
@@ -53,7 +53,7 @@ class MoEAnomalyDetection:
         )
         self.model.apply(self.init_weights)
         self.model.to(self.device)
-        optimizer = torch.optim.RMSprop(
+        optimizer = torch.optim.Adam(
             self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
         )
 

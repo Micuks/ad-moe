@@ -84,132 +84,11 @@ def model_fit(model_name: str, model_class, seed):
         print(e.with_traceback())
 
 
-basepath = "./data"
+from load_ob import OceanBase_Dataset
 
-train_csvs = [
-    # "memory_limit_merge_label",
-    "io_saturation_merge_ob_2024-03-0706_11_36UTC_label",
-    "io_saturation_merge_ob_2024-03-0717_44_47UTC_label",
-    # "memory_limit_merge_ob_2024-03-0508_09_42UTC_label",
-    "memory_limit_merge_ob_2024-03-0508_56_01UTC_label",
-    "memory_limit_merge_ob_2024-03-0509_42_19UTC_label",
-    # "memory_limit_merge_ob_2024-03-0510_28_34UTC_label",
-    # "memory_limit_merge_ob_2024-03-0511_14_49UTC_label",
-    # "memory_limit_4_16_merge_ob_2024-03-1016_04_40UTC_label",
-    # "memory_limit_4_16_merge_ob_2024-03-1017_05_55UTC_label",
-]
-
-test_csvs = [
-    # "memory_limit_merge_label",
-    "io_saturation_merge_ob_2024-03-0706_11_36UTC_label",
-    "io_saturation_merge_ob_2024-03-0717_44_47UTC_label",
-    # "memory_limit_merge_ob_2024-03-0508_09_42UTC_label",
-    # "memory_limit_merge_ob_2024-03-0508_56_01UTC_label",
-    # "memory_limit_merge_ob_2024-03-0509_42_19UTC_label",
-    "memory_limit_merge_ob_2024-03-0510_28_34UTC_label",
-    "memory_limit_merge_ob_2024-03-0511_14_49UTC_label",
-    "memory_limit_4_16_merge_ob_2024-03-1016_04_40UTC_label",
-    "memory_limit_4_16_merge_ob_2024-03-1017_05_55UTC_label",
-]
-
-train_tasks = [
-    "io_saturation_merge",
-    "memory_limit_merge",
-    # "memory_limit_4_16_merge",
-]
-
-test_tasks = [
-    "io_saturation_merge",
-    "memory_limit_merge",
-    "memory_limit_4_16_merge",
-]
-
-
-def get_dfs(tasks: list):
-    return [[] for _ in range(len(tasks))]
-
-
-dfs_train = get_dfs(train_tasks)
-dfs_test = get_dfs(test_tasks)
-
-f = lambda x: os.path.join(basepath, x + ".csv")
-for csv in train_csvs:
-    df = pd.read_csv(f(csv))
-    for i, task in enumerate(train_tasks):
-        if task in csv:
-            dfs_train[i].append(df)
-            break
-
-for csv in test_csvs:
-    df = pd.read_csv(f(csv))
-    for i, t in enumerate(test_tasks):
-        if t in csv:
-            dfs_test[i].append(df)
-            break
-
-dfs_train_all = [pd.concat(dfs, axis=0) for dfs in dfs_train]
-dfs_test_all = [pd.concat(dfs, axis=0) for dfs in dfs_test]
-
-num_norm = lambda x: len(x[x["label"] == 0])
-num_anom = lambda x: len(x[x["label"] != 0])
-print(
-    f"dfs_train_all[{[df.shape for df in dfs_train_all]}], normal[{[num_norm(df) for df in dfs_train_all]}], anomaly[{[num_anom(df) for df in dfs_train_all]}]"
-)
-print(
-    f"dfs_test_all[{[df.shape for df in dfs_test_all]}], normal[{[num_norm(df) for df in dfs_test_all]}], anomaly[{[num_anom(df) for df in dfs_test_all]}]"
-)
-
-# %% [markdown]
-# # Data cleaning
-# ## Remove irrelevant data
-# Remove those columns whose data never change
-
-# %%
-# Find those columns in df_all that are always zero
-zero_cols = dfs_train_all[0].columns[(dfs_train_all[0] == 0).all()]
-print(len(zero_cols))
-
-# Drop those cols
-dfs_train_all = [df.drop(zero_cols, axis=1) for df in dfs_train_all]
-dfs_test_all = [df.drop(zero_cols, axis=1) for df in dfs_test_all]
-
-# %% [markdown]
-# # Dataset construction
-#
-# Reconstruct dataset with respect to anomaly ratio
-
-
-# %%
-def construct_dataset(dfs, anomaly_ratio=0.1):
-    new_dfs = []
-    for df in dfs:
-        num_normal = num_anom(df)
-        required_num_anomaly = int(num_normal * (anomaly_ratio / (1 - anomaly_ratio)))
-
-        normal_samples = df[df["label"] == 0]
-        anomaly_samples = df[df["label"] != 0].sample(
-            n=required_num_anomaly, random_state=42
-        )
-
-        new_dfs.append(
-            pd.concat([normal_samples, anomaly_samples]).sample(
-                frac=1, random_state=42, axis=0
-            )
-        )
-
-    return new_dfs
-
-
-dfs_train_all = construct_dataset(dfs_train_all, anomaly_ratio=0.2)
-dfs_test_all = construct_dataset(dfs_test_all, anomaly_ratio=0.5)
-
-print(
-    f"dfs_train_all[{[df.shape for df in dfs_train_all]}], normal[{[num_norm(df) for df in dfs_train_all]}], anomaly[{[num_anom(df) for df in dfs_train_all]}]"
-)
-print(
-    f"dfs_test_all[{[df.shape for df in dfs_test_all]}], normal[{[num_norm(df) for df in dfs_test_all]}], anomaly[{[num_anom(df) for df in dfs_test_all]}]"
-)
-
+# Train on OceanBase dataset
+ob_dataset = OceanBase_Dataset(anomaly_ratio=0.2)
+dfs_train_all, dfs_test_all = ob_dataset.load_dataset(drop_zero_cols=True)
 
 # %% [markdown]
 # # Without meta-learning
@@ -236,6 +115,7 @@ y_test = total_test["label"].to_numpy()
 print(f"X[{X.shape}] y[{y.shape}]")
 
 model = MoEAnomalyDetection(seed=seed)
+model_name = "MoEAnomalyDetection"
 fit_time, val_predict_time, test_predict_time, metrics = model_fit(
     "MoEAnomalyDetection", MoEAnomalyDetection, seed
 )
