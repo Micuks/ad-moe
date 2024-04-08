@@ -8,12 +8,21 @@ prefix = """
 #set text(
   font: "Songti SC"
 )
+#set table.hline(stroke: 0.6pt)
+#set table(align: (x, _) => if x == 0 {left} else {right})
+#show table.cell.where(x: 0): smallcaps
 #table(
   columns: 5,
-  table.header[*Model*][ROC-AUC][Accuracy][Recall][F1-Score],
+  stroke: none,
+  table.header[*Model*][*ROC-AUC*][*Accuracy*][*Recall*][*F1-Score*],
+  table.hline(y: 0, stroke: 1pt),
+  table.hline(),
 """
 
-suffix = ")"
+suffix = """
+ table.hline(stroke: 1pt),
+)
+"""
 body = []
 output_filename = "./output.typ"
 

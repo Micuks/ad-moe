@@ -1,0 +1,52 @@
+\documentclass{article}
+\usepackage[noend]{algpseudocode}
+\usepackage{algorithm}
+
+\begin{document}
+
+\begin{algorithm}
+\caption{Merge Metrics Data with Timestamp Interpolation}
+\begin{algorithmic}[1]
+\Procedure{MergeMetrics}{$file1$, $file2$}
+    \State $metrics1 \gets \Call{ReadLines}{file1}$
+    \State $metrics2 \gets \Call{ReadLines}{file2}$
+    \State $headerLength \gets 5$
+    \State $mergedResults \gets metrics1[1:headerLength-1]$
+    \State $mergedResults.append(metrics1[headerLength].strip() + \Call{RmTs}{metrics2[headerLength]})$
+    \State $labels \gets []$
+    \State $pointer1 \gets 0$
+    \State $pointer2 \gets 0$
+    \State $previousTimestamp \gets \Call{GetTs}{metrics1[headerLength+1]}$
+    \While{$pointer1 < \text{length}(metrics1) - headerLength - 1 \And pointer2 < \text{length}(metrics2) - headerLength - 1$}
+        \State $timestamp1 \gets \Call{GetTs}{metrics1[pointer1 + headerLength + 1]}$
+        \State $timestamp2 \gets \Call{GetTs}{metrics2[pointer2 + headerLength + 1]}$
+        \While{$timestamp2 < previousTimestamp \And pointer2 < \text{length}(metrics2) - headerLength - 1$}
+            \State $pointer2 \gets pointer2 + 1$
+            \State $timestamp2 \gets \Call{GetTs}{metrics2[pointer2 + headerLength + 1]}$
+        \EndWhile
+        \If{$|timestamp1 - timestamp2| < 5$}
+            \State $mergedResults.append(metrics1[pointer1 + headerLength + 1].strip() + \Call{RmTs}{metrics2[pointer2 + headerLength + 1]})$
+            \State $labels.append(``0\n'')$
+            \State $previousTimestamp \gets timestamp1$
+            \State $pointer1 \gets pointer1 + 1$
+            \State $pointer2 \gets pointer2 + 1$
+        \Else
+            \State \textit{Interpolate and append data (Detailed interpolation logic goes here)}
+        \EndIf
+    \EndWhile
+    \State \Call{WriteToFile}{$file1.replace(``metricsx'', ``merge'')$, $mergedResults$}
+    \State \Call{WriteToFile}{$file1.replace(``metricsx'', ``label'')$, $labels$}
+\EndProcedure
+
+\Function{RmTs}{$line$}
+    \State \textbf{return} $','\text{.join}(line.split(',')[1:])$
+\EndFunction
+
+\Function{GetTs}{$line$}
+    \State \textbf{return} $\text{int}(line.split(',')[0])$
+\EndFunction
+
+\end{algorithmic}
+\end{algorithm}
+
+\end{document}
