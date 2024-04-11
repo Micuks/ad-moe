@@ -2,3 +2,6 @@
 **/catboost_info
 data/
 *.pdf
+venv/
+libstdc++.so.6
+*.log

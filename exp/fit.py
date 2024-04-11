@@ -36,15 +36,13 @@ def fit(
 
             x, y = x.to(device), y.to(device).float()
             optimizer.zero_grad()
-            with torch.autograd.detect_anomaly():
-                output = model(x)
-                loss = torch.nn.functional.binary_cross_entropy_with_logits(output, y)
-                loss.backward()
-                for name, param in model.named_parameters():
-                    if param.grad is not None:
-                        assert not torch.isnan(
-                            param.grad
-                        ).any(), f"NaN gradient in {name}"
+            # with torch.autograd.detect_anomaly():
+            output = model(x)
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(output, y)
+            loss.backward()
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    assert not torch.isnan(param.grad).any(), f"NaN gradient in {name}"
 
             # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
