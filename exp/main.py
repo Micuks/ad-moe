@@ -11,9 +11,12 @@ from sklearn.metrics import accuracy_score, recall_score, f1_score
 from run import MoEAnomalyDetection
 from load_ob import OceanBase_Dataset
 from load_dbpa import DBPA_Dataset
+import io
+import json
 
 
 seed = 42
+results = []
 
 
 def evaluate_model(name: str, scores, y_truth, threshold=0.5):
@@ -129,6 +132,7 @@ model_name = "MoEAnomalyDetection"
 fit_time, val_predict_time, test_predict_time, metrics = model_fit(
     "MoEAnomalyDetection", MoEAnomalyDetection, seed
 )
+results.append([model_name, metrics, fit_time, val_predict_time, test_predict_time])
 print(
     f"{model_name}: {metrics}, ",
     f"fitting time: {fit_time}, val inference time: {val_predict_time}, test inference time: {test_predict_time}",
@@ -212,7 +216,6 @@ for _ in ["SOGAAL", "MOGAAL", "LSCP", "MCD", "FeatureBagging"]:
 
 # %%
 
-results = []
 # Model fitting
 for model_name, model_class in tqdm(model_dict.items()):
     try:
@@ -231,4 +234,6 @@ for model_name, model_class in tqdm(model_dict.items()):
         print(e)
 
 # %%
+with io.open("data.json", "w") as f:
+    json.dump(results, f)
 print(results)
