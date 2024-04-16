@@ -3,7 +3,7 @@ import numpy as np
 import random
 from torch import nn
 from model import _MOEAnomalyDetection
-from fit import fit
+from fit import fit, meta_fit
 
 
 class MoEAnomalyDetection:
@@ -16,6 +16,10 @@ class MoEAnomalyDetection:
         batch_num: int = 20,
         batch_size: int = 128,
         lr: float = 1e-4,
+        meta_lr: float = 1e-4,
+        inner_update_steps=5,
+        inner_lr=1e-3,  # LR for task-specific updates
+        meta_batch_size=32,  # Number of tasks per meta-update
         weight_decay: float = 1e-5,
     ):
         self.seed = seed
@@ -27,6 +31,9 @@ class MoEAnomalyDetection:
         self.batch_num = batch_num
         self.batch_size = batch_size
         self.lr = lr
+        self.meta_lr = meta_lr
+        self.inner_update_steps = (inner_update_steps,)
+        self.inner_lr = inner_lr, self.meta_batch_size = (meta_batch_size,)
         self.weight_decay = weight_decay
 
     def set_seed(self, seed):
@@ -60,12 +67,50 @@ class MoEAnomalyDetection:
         # training
         fit(
             X_train_tensor=self.X_train_tensor,
-            y_train=y_train,
+            y_train=self.y_train,
             model=self.model,
             optimizer=optimizer,
             epochs=self.epochs,
             batch_num=self.batch_num,
             batch_size=self.batch_size,
+            device=self.device,
+        )
+
+        return self
+
+    def meta_fit(self, X_train, y_train, ratio=None):
+        input_size = X_train.shape[1]
+        self.X_train_tensor = torch.from_numpy(X_train).float()
+        self.y_train = y_train
+
+        self.set_seed(self.seed)
+        self.model = _MOEAnomalyDetection(
+            input_size=input_size, num_experts=self.num_experts
+        )
+        self.model.apply(self.init_weights)
+        self.model.to(self.device)
+
+        # Configs
+        optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
+        meta_optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.meta_lr, weight_decay=self.weight_decay
+        )
+
+        # Meta-training
+        meta_fit(
+            X_train_tensor=self.X_train_tensor,
+            y_train=self.y_train,
+            model=self.model,
+            optimizer=optimizer,
+            meta_optimizer=meta_optimizer,
+            epochs=self.epochs,
+            batch_num=self.batch_num,
+            batch_size=self.batch_size,
+            meta_batch_size=self.meta_batch_size,
+            inner_update_steps=self.inner_update_steps,
+            inner_lr=self.inner_lr,
             device=self.device,
         )
 

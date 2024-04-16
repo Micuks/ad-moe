@@ -13,7 +13,7 @@ from load_ob import OceanBase_Dataset
 from load_dbpa import DBPA_Dataset
 import io
 import json
-
+import traceback
 
 seed = 42
 results = []
@@ -87,10 +87,52 @@ def model_fit(model_name: str, model_class, seed):
                 # "test_f1": test_f1,
             },
         )
+
     except Exception as e:
         print(f"Error running {model_name}: {e}")
         # Print e's traceback
-        print(e.with_traceback())
+        traceback.print_exc()
+
+
+def model_meta_fit(model_name: str, model_class, X_train, y_train, seed=42):
+    try:
+        # meta-training style fitting
+        start_time = time.time()
+        model = model_class(model_name=model_name, seed=seed)
+        model.meta_fit(X_train, y_train)
+        end_time = time.time()
+        fit_time = end_time - start_time
+
+        # predict
+        # val
+        start_time = time.time()
+        score = model.predict_score(X_val)
+        end_time = time.time()
+        val_predict_time = end_time - start_time
+        val_auc, val_acc = evaluate_model(model_name, score, y_val)
+
+        # test
+        start_time = time.time()
+        score = model.predict(X_test)
+        end_time = time.time()
+        test_predict_time = end_time - start_time
+        test_auc, test_acc = evaluate_model(model_name, score, y_test)
+
+        return (
+            fit_time,
+            val_predict_time,
+            test_predict_time,
+            {
+                "val_auc": val_auc,
+                "val_acc": val_acc,
+                "test_auc": test_auc,
+                "test_acc": test_acc,
+            },
+        )
+
+    except Exception as e:
+        print(f"Error running {model_name}: {e}")
+        traceback.print_exc()
 
 
 # Train on OceanBase dataset

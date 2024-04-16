@@ -1,8 +1,10 @@
 import torch
+import higher
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 
-class OBDataset(Dataset):
+class THEDataset(Dataset):
     def __init__(self, X_train_tensor, y_train):
         self.X = X_train_tensor
         self.y = y_train
@@ -28,7 +30,7 @@ def fit(
     model.train()
     for epoch in range(epochs):
         dataloader = DataLoader(
-            OBDataset(X_train_tensor, y_train), batch_size=batch_size, shuffle=True
+            THEDataset(X_train_tensor, y_train), batch_size=batch_size, shuffle=True
         )
         for batch_idx, (x, y) in enumerate(dataloader):
             if batch_idx >= batch_num:
@@ -47,3 +49,55 @@ def fit(
             # Gradient clipping
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
             optimizer.step()
+
+
+def meta_fit(
+    X_train_tensor,
+    y_train,
+    model,
+    optimizer,
+    meta_optimizer,
+    epochs,
+    batch_num,
+    batch_size,
+    meta_batch_size,
+    inner_update_steps,
+    inner_lr,
+    clip_value=1.0,
+    device=None,
+):
+    model.train()
+    meta_dataset = DataLoader(
+        THEDataset(X_train_tensor, y_train), batch_size=meta_batch_size, shuffle=True
+    )
+
+    for epoch in range(epochs):
+        for meta_batch_idx, meta_batch in enumerate(meta_dataset):
+            meta_optimizer.zero_grad()
+
+            meta_loss = 0
+            for x_task, y_task in meta_batch:
+                x_task, y_task = x_task.to(device), y_task.to(device).float()
+
+                with higher.innerloop_ctx(
+                    model, optimizer, copy_initial_weights=False
+                ) as (fmodel, diffopt):
+                    for _ in range(inner_update_steps):
+                        output = fmodel(x_task)
+                        task_loss = F.binary_cross_entropy_with_logits(output, y_task)
+                        diffopt.step(task_loss)
+
+                    with torch.no_grad():
+                        output = fmodel(x_task)
+                        val_loss = F.binary_cross_entropy_with_logits(output, y_task)
+                    meta_loss += val_loss
+
+            # Gradient clipping
+            # torch.nn.utils.clip_grad_norm_(model.patameters(), clip_value)
+            meta_loss.backword()
+            meta_optimizer.step()
+
+            if meta_batch_idx >= batch_num:
+                break
+
+    return model
