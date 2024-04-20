@@ -78,7 +78,7 @@ class MoEAnomalyDetection:
 
         return self
 
-    def meta_fit(self, X_train, y_train, ratio=None):
+    def meta_fit(self, train_datasets, ratio=None):
         input_size = X_train.shape[1]
         self.X_train_tensor = torch.from_numpy(X_train).float()
         self.y_train = y_train
@@ -100,8 +100,7 @@ class MoEAnomalyDetection:
 
         # Meta-training
         meta_fit(
-            X_train_tensor=self.X_train_tensor,
-            y_train=self.y_train,
+            train_datasets=train_datasets,
             model=self.model,
             optimizer=optimizer,
             meta_optimizer=meta_optimizer,

@@ -52,8 +52,7 @@ def fit(
 
 
 def meta_fit(
-    X_train_tensor,
-    y_train,
+    train_datasets,
     model,
     optimizer,
     meta_optimizer,
@@ -67,12 +66,13 @@ def meta_fit(
     device=None,
 ):
     model.train()
-    meta_dataset = DataLoader(
-        THEDataset(X_train_tensor, y_train), batch_size=meta_batch_size, shuffle=True
-    )
+    meta_train_dataloader = [
+        DataLoader(dataset, batch_size=meta_batch_size, shuffle=True)
+        for dataset in train_datasets
+    ]
 
     for epoch in range(epochs):
-        for meta_batch_idx, meta_batch in enumerate(meta_dataset):
+        for meta_batch_idx, meta_batch in enumerate(meta_train_dataloader):
             meta_optimizer.zero_grad()
 
             meta_loss = 0
