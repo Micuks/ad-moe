@@ -2,8 +2,8 @@ import torch
 import numpy as np
 import random
 from torch import nn
-from model import _MOEAnomalyDetection
-from fit import fit, meta_fit
+from mymodel.model import _MOEAnomalyDetection
+from mymodel.fit import fit, meta_fit
 
 
 class MoEAnomalyDetection:
@@ -32,8 +32,9 @@ class MoEAnomalyDetection:
         self.batch_size = batch_size
         self.lr = lr
         self.meta_lr = meta_lr
-        self.inner_update_steps = (inner_update_steps,)
-        self.inner_lr = inner_lr, self.meta_batch_size = (meta_batch_size,)
+        self.inner_update_steps = inner_update_steps
+        self.inner_lr = inner_lr
+        self.meta_batch_size = meta_batch_size
         self.weight_decay = weight_decay
 
     def set_seed(self, seed):
@@ -79,9 +80,11 @@ class MoEAnomalyDetection:
         return self
 
     def meta_fit(self, train_datasets, ratio=None):
-        input_size = X_train.shape[1]
-        self.X_train_tensor = torch.from_numpy(X_train).float()
-        self.y_train = y_train
+        if not train_datasets or len(train_datasets[0]) == 0:
+            raise ValueError("train_datasets is empty or the first dataset is empty.")
+
+        sample_data, _ = train_datasets[0][0]
+        input_size = sample_data.shape[0]
 
         self.set_seed(self.seed)
         self.model = _MOEAnomalyDetection(

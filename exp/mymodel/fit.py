@@ -47,7 +47,7 @@ def fit(
                     assert not torch.isnan(param.grad).any(), f"NaN gradient in {name}"
 
             # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
             optimizer.step()
 
 

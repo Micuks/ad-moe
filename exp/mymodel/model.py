@@ -10,6 +10,27 @@ def init_weights(m):
             torch.nn.init.zeros_(m.bias)
 
 
+class PreNet(nn.Module):
+    def __init__(self, input_size, act_fun):
+        super(PreNet, self).__init__()
+        self.feature = nn.Sequential(nn.Linear(input_size, 20), act_fun)
+        self.reg = nn.Linear(40, 1)
+
+    def forward(self, X_left, X_right):
+        feature_left = self.feature(X_left)
+        feature_right = self.feature(X_right)
+
+        feature = torch.cat((feature_left, feature_right), dim=1)
+        score = self.reg(feature)
+
+        return score.squeeze()
+
+
+class AutoEncoderExpert(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+
 class MLP(nn.Module):
     def __init__(self, x_dim, h_dims=[128, 64], rep_dim=32, bias=False):
         super().__init__()
@@ -42,28 +63,17 @@ class linear_bn_leakyReLU(nn.Module):
         return F.leaky_relu(self.bn(self.linear(x)), 0.01)
 
 
-class PreNet(nn.Module):
-    def __init__(self, input_size, act_fun):
-        super(PreNet, self).__init__()
-        self.feature = nn.Sequential(nn.Linear(input_size, 20), act_fun)
-        self.reg = nn.Linear(40, 1)
-
-    def forward(self, X_left, X_right):
-        feature_left = self.feature(X_left)
-        feature_right = self.feature(X_right)
-
-        feature = torch.cat((feature_left, feature_right), dim=1)
-        score = self.reg(feature)
-
-        return score.squeeze()
-
-
 class GatingNetwork(nn.Module):
-    def __init__(self, input_size, num_experts=8):
+    def __init__(
+        self, input_size, num_tasks=10, embedding_dim=32, inner_dim=128, num_experts=8
+    ):
         super(GatingNetwork, self).__init__()
+        self.task_embedding = nn.Embedding(num_tasks, embedding_dim)
         self.gate = nn.Sequential(
-            nn.Linear(input_size, num_experts),
-            nn.LayerNorm(num_experts),  # To avoid NaN
+            nn.Linear(input_size + embedding_dim, inner_dim),
+            nn.ReLU(),
+            # nn.LayerNorm(num_experts),  # To avoid NaN
+            nn.Linear(inner_dim, num_experts),
             nn.Softmax(dim=1),
         )
 
@@ -75,10 +85,10 @@ class GatingNetwork(nn.Module):
             if m.bias is not None:
                 torch.nn.init.zeros_(m.bias)
 
-    def forward(self, x):
-        # with torch.no_grad():
-        #     pre_softmax_activations = self.gate[:-1](x)
-        # print(f"Pre-softmax activations: {pre_softmax_activations}")
+    def forward(self, x, task_id=0):
+        task_embed = self.task_embedding(task_id)
+        combined_input = torch.cat((x, task_embed), dim=1)
+
         return self.gate(x)
 
 

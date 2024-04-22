@@ -49,8 +49,8 @@ def model_fit(
 ):
     try:
         # fit
-        start_time = time.time()
         model = model_class(model_name=model_name, seed=seed)
+        start_time = time.time()
         # if np.any(np.isnan(X_train)) or np.any(np.isinf(X_train)):
         #     print("X_train contains NaN or inf")
         model.fit(X_train, y_train)
@@ -80,7 +80,7 @@ def model_fit(
         # )
         test_auc, test_acc = evaluate_model(model_name, score, y_test)
 
-        return (
+        data = (
             fit_time,
             val_predict_time,
             test_predict_time,
@@ -95,6 +95,8 @@ def model_fit(
                 # "test_f1": test_f1,
             },
         )
+        print(data)
+        return data
 
     except Exception as e:
         print(f"Error running {model_name}: {e}")
@@ -207,7 +209,7 @@ def model_meta_fit(
 def train_eval_mymodel_vanilla(results: list, seed: int):
     X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla()
 
-    model = MoEAnomalyDetection(seed=seed)
+    model = MoEAnomalyDetection
     model_name = "MoEAnomalyDetection"
     fit_time, val_predict_time, test_predict_time, metrics = model_fit(
         model_name,
