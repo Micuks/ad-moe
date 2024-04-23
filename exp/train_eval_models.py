@@ -100,8 +100,9 @@ def model_fit(
 
     except Exception as e:
         print(f"Error running {model_name}: {e}")
+        raise Exception(e)
         # Print e's traceback
-        traceback.print_exc()
+        # traceback.print_exc()
 
 
 def split_train_val_dataset(dataset, val_ratio=0.1):
@@ -126,7 +127,7 @@ def prepare_task_splits(train_datasets, val_ratio=0.1):
     for dataset in train_datasets:
         train_part, val_part = split_train_val_dataset(dataset, val_ratio)
         train_split.append(train_part)
-        val_split.append(val_split)
+        val_split.append(val_part)
     return train_split, val_split
 
 
@@ -137,73 +138,68 @@ def model_meta_fit(
     test_datasets,
     seed=42,
 ):
-    try:
-        train_split, val_split = prepare_task_splits(train_datasets, val_ratio=0.1)
-        # meta-training style fitting
-        start_time = time.time()
-        model = model_class(model_name=model_name, seed=seed)
+    train_split, val_split = prepare_task_splits(train_datasets, val_ratio=0.1)
+    # meta-training style fitting
+    start_time = time.time()
+    model = model_class(model_name=model_name, seed=seed)
 
-        # Meta-training
-        model.meta_fit(train_datasets)
-        end_time = time.time()
-        fit_time = end_time - start_time
+    # Meta-training
+    model.meta_fit(train_split)
+    end_time = time.time()
+    fit_time = end_time - start_time
 
-        # predict
-        # val
-        val_scores = []
-        val_labels = []
-        val_predict_times = []
-        for task in val_split:
-            for X_val, y_val in DataLoader(
-                task, batch_size=model.batch_size, shuffle=False
-            ):
-                start_time = time.time()
-                score = model.predict_score(X_val)
-                end_time = time.time()
-                val_predict_time = end_time - start_time
+    # predict
+    # val
+    val_scores = []
+    val_labels = []
+    val_predict_times = []
+    for task in val_split:
+        for X_val, y_val in DataLoader(
+            task, batch_size=model.batch_size, shuffle=False
+        ):
+            start_time = time.time()
+            score = model.predict_score(X_val)
+            end_time = time.time()
+            val_predict_time = end_time - start_time
 
-                val_scores.extend(score.numpy())
-                val_labels.extend(y_val.numpy())
-                val_predict_times.append(val_predict_time)
+            val_scores.extend(score.numpy())
+            val_labels.extend(y_val.numpy())
+            val_predict_times.append(val_predict_time)
 
-        val_auc, val_acc = evaluate_model(model_name, val_scores, val_labels)
-        mean_val_predict_time = np.mean(val_predict_times)
+    val_auc, val_acc = evaluate_model(model_name, val_scores, val_labels)
+    mean_val_predict_time = np.mean(val_predict_times)
 
-        # test
-        test_scores = []
-        test_labels = []
-        test_predict_times = []
-        for task in test_datasets:
-            for X_test, y_test in DataLoader(
-                task, batch_size=model.batch_size, shuffle=False
-            ):
-                start_time = time.time()
-                score = model.predict(X_test)
-                end_time = time.time()
-                test_predict_time = end_time - start_time
+    # test
+    test_scores = []
+    test_labels = []
+    test_predict_times = []
+    for task in test_datasets:
+        for X_test, y_test in DataLoader(
+            task, batch_size=model.batch_size, shuffle=False
+        ):
+            start_time = time.time()
+            score = model.predict(X_test)
+            end_time = time.time()
+            test_predict_time = end_time - start_time
 
-                test_predict_times.append(test_predict_time)
-                test_scores.extend(score.numpy())
-                test_labels.extend(y_test)
+            test_predict_times.append(test_predict_time)
+            test_scores.extend(score.numpy())
+            test_labels.extend(y_test)
 
-        test_auc, test_acc = evaluate_model(model_name, score, y_test)
-        mean_test_predict_time = np.mean(test_predict_times)
+    test_auc, test_acc = evaluate_model(model_name, score, y_test)
+    mean_test_predict_time = np.mean(test_predict_times)
 
-        return (
-            fit_time,
-            mean_val_predict_time,
-            mean_test_predict_time,
-            {
-                "val_auc": val_auc,
-                "val_acc": val_acc,
-                "test_auc": test_auc,
-                "test_acc": test_acc,
-            },
-        )
-
-    except Exception as e:
-
-        traceback.print_exc()
+    return (
+        fit_time,
+        mean_val_predict_time,
+        mean_test_predict_time,
+        {
+            "val_auc": val_auc,
+            "val_acc": val_acc,
+            "test_auc": test_auc,
+            "test_acc": test_acc,
+        },
+    )
 
 
 def train_eval_mymodel_vanilla(results: list, seed: int):
@@ -234,7 +230,7 @@ def train_eval_mymodel_vanilla(results: list, seed: int):
 
 def train_eval_mymodel_meta(results: list, seed: int):
     train_datasets, test_datasets = prepare_data_meta_training()
-    model = MoEAnomalyDetection(seed=seed)
+    model = MoEAnomalyDetection
     model_name = "MoEAnomalyDetection"
     fit_time, val_predict_time, test_predict_time, metrics = model_meta_fit(
         model_name,
