@@ -1,4 +1,5 @@
 import io
+from sklearn.preprocessing import StandardScaler
 import os
 import pandas as pd
 import pickle as pkl
@@ -45,13 +46,54 @@ class DBPA_Dataset:
         self._num_norm = lambda x: len(x[x[len(x.columns) - 1] == 0])
         self._num_anom = lambda x: len(x[x[len(x.columns) - 1] != 0])
 
-    def _is_anomaly(self, label: str) -> bool:
-        anomalies = ["knob_innodb_buffer"]
+    def _mark_label(self, label: str) -> int:
+        anomalies = [
+            "[109]",
+            "[115]",
+            "[117]",
+            "[118]",
+            "[126]",
+            "[171]",
+            "[26]",
+            "[5, 17]",
+            "[5, 18]",
+            "[50]",
+            "[51]",
+            "[53]",
+            "[54]",
+            "[56]",
+            "[6, 18]",
+            "[6, 19]",
+            "[6, 20]",
+            "[6, 21]",
+            "[6, 22]",
+            "[6, 23]",
+            "[6, 24]",
+            "[6, 25]",
+            "[6, 26]",
+            "[6, 27]",
+            "[6, 28]",
+            "[6, 29]",
+            "[6, 30]",
+            "[6, 36]",
+            "[6, 48]",
+            "[69]",
+            "[7, 19]",
+            "[73]",
+            "[76]",
+            "[77]",
+            "knob_innodb_buffer",
+            "manyindex",
+        ]
         normal = ["normal"]
-        if label in normal:
-            return False
+        # if str(label) in normal:
+        #     return 0
+        # else:
+        #     return anomalies.index(str(label)) + 1
+        if str(label) in normal:
+            return 0
         else:
-            return True
+            return 1
 
     def _data_to_df(self, data: list) -> pd.DataFrame:
         df = []
@@ -60,7 +102,7 @@ class DBPA_Dataset:
             y = d[1]
 
             for x in Xs:
-                x = x.append(1 if self._is_anomaly(y) else 0)
+                x = x.append(self._mark_label(y))
             df.extend(Xs)
 
         df = pd.DataFrame(df)
@@ -69,7 +111,7 @@ class DBPA_Dataset:
 
         return df
 
-    def load_dataset(self, drop_zero_cols=False):
+    def load_dataset(self, drop_zero_cols=False, scaler_transform=True):
         basepath = self.basepath
         train_specs = self.train_specs
         test_specs = self.test_specs
@@ -92,6 +134,39 @@ class DBPA_Dataset:
                     data = pkl.load(f)
                     df = self._data_to_df(data)
                     dfs_test.append(df)
+
+        common_columns = set(dfs_train[0].columns)
+        for df in dfs_train + dfs_test:
+            common_columns.intersection_update(df.columns)
+
+        dfs_train = [df[list(common_columns)] for df in dfs_train]
+        dfs_test = [df[list(common_columns)] for df in dfs_test]
+
+        # # Drop Timestamp
+        # dfs_train_notimestamp = [
+        #     df.drop(df.columns[0], axis=1, inplace=False) for df in dfs_train
+        # ]
+        # dfs_test_notimestamp = [
+        #     df.drop(df.columns[0], axis=1, inplace=False) for df in dfs_test
+        # ]
+
+        # if scaler_transform:
+        #     combined_train = pd.concat(dfs_train_notimestamp, ignore_index=True, axis=0)
+
+        #     scaler = StandardScaler()
+        #     scaler.fit(combined_train)
+
+        #     dfs_train_all = [
+        #         pd.DataFrame(scaler.transform(df), columns=df.columns)
+        #         for df in dfs_train_notimestamp
+        #     ]
+        #     dfs_test_all = [
+        #         pd.DataFrame(scaler.transform(df), columns=df.columns)
+        #         for df in dfs_test_notimestamp
+        #     ]
+        # else:
+        #     dfs_train_all = dfs_train_notimestamp
+        #     dfs_test_all = dfs_test_notimestamp
 
         dfs_train_all = dfs_train
         dfs_test_all = dfs_test
@@ -163,7 +238,7 @@ class DBPA_Dataset:
             new_df = pd.concat([normal_samples, anomaly_labels]).sample(
                 frac=1, random_state=self.random_state, axis=0
             )
-            # Remove timestamp column, and name label column as label
+            # name label column as label
             new_df.drop(df.columns[0], axis=1, inplace=True)
             new_df.columns = [*new_df.columns[:-1], "label"]
 

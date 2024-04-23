@@ -40,11 +40,19 @@ def prepare_data_vanilla():
 
 
 class TaskSpecificDataset(Dataset):
-    def __init__(self, df) -> None:
-        self.data = df.drop(columns=["label"]).to_numpy()
-        self.labels = df["label"].to_numpy()
-        self.data = torch.from_numpy(self.data)
-        self.labels = torch.from_numpy(self.labels)
+    def __init__(self, df, feature_columns=None, label_column=None) -> None:
+        if df.empty:
+            raise ValueError("The DataFrame is empty")
+        if feature_columns is None:
+            feature_columns = df.columns[:-1]
+        if label_column is None:
+            label_column = df.columns[-1]
+        self.data = df[feature_columns].to_numpy(dtype=float)
+        self.labels = df[label_column].to_numpy(dtype=int)
+
+        self.data = torch.from_numpy(self.data).float()
+        self.labels = torch.from_numpy(self.labels).long()
+        # print(f"data.shape[{self.data.shape}]")
 
     def __len__(self):
         return len(self.data)

@@ -4,6 +4,7 @@ import random
 from torch import nn
 from mymodel.model import _MOEAnomalyDetection
 from mymodel.fit import fit, meta_fit
+import traceback
 
 
 class MoEAnomalyDetection:
@@ -52,7 +53,12 @@ class MoEAnomalyDetection:
 
     def fit(self, X_train, y_train, ratio=None):
         input_size = X_train.shape[1]
-        self.X_train_tensor = torch.from_numpy(X_train).float()
+        try:
+            self.X_train_tensor = torch.from_numpy(X_train).float()
+        except Exception as e:
+            print(X_train)
+            traceback.print_exc()
+
         self.y_train = y_train
 
         self.set_seed(self.seed)
@@ -79,12 +85,24 @@ class MoEAnomalyDetection:
 
         return self
 
+    def check_datasets_consistency(self, datasets):
+        expected_features = None
+        for dataset in datasets:
+            for data, _ in dataset:
+                if expected_features is None:
+                    expected_features = data.shape[0]
+                elif data.shape[0] != expected_features:
+                    raise ValueError(
+                        f"this dataset has {data.shape[0]} features, expected {expected_features}"
+                    )
+
+        return expected_features
+
     def meta_fit(self, train_datasets, ratio=None):
         if not train_datasets or len(train_datasets[0]) == 0:
             raise ValueError("train_datasets is empty or the first dataset is empty.")
 
-        sample_data, _ = train_datasets[0][0]
-        input_size = sample_data.shape[0]
+        input_size = self.check_datasets_consistency(train_datasets)
 
         self.set_seed(self.seed)
         self.model = _MOEAnomalyDetection(
