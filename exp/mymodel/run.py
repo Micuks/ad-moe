@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 import numpy as np
 import random
 from torch import nn
@@ -52,12 +53,12 @@ class MoEAnomalyDetection:
                 torch.nn.init.zeros_(m.bias)
 
     def fit(self, X_train, y_train, ratio=None):
-        input_size = X_train.shape[1]
         try:
+            X_train = X_train.astype("float32")
             self.X_train_tensor = torch.from_numpy(X_train).float()
+            input_size = X_train.shape[1]
         except Exception as e:
-            print(X_train)
-            traceback.print_exc()
+            raise ValueError(e)
 
         self.y_train = y_train
 
@@ -136,30 +137,21 @@ class MoEAnomalyDetection:
 
         return self
 
-    def predict_score(self, X, num=30):
+    def predict_score(self, X, num=30) -> np.ndarray:
         self.model = self.model.eval()
 
         X = X if torch.is_tensor(X) else torch.from_numpy(X)
         X = X.float().to(self.device)
 
-        score = []
+        scores = []
 
         with torch.no_grad():
-            for i in range(len(X)):
-                index_normal = np.random.choice(
-                    np.where(self.y_train == 1)[0], num, replace=True
-                )
-                index_anomaly = np.random.choice(
-                    np.where(self.y_train == 0)[0], num, replace=True
-                )
-                X_train_normal = self.X_train_tensor[index_normal].to(self.device)
-                X_train_anomaly = self.X_train_tensor[index_anomaly].to(self.device)
+            for i in range(0, len(X), self.batch_size):
+                batch_X = X[i : i + self.batch_size]
 
-                batch_score = self.model(torch.cat((X_train_normal, X_train_anomaly)))
+                batch_scores = self.model(batch_X)
 
-                batch_score = torch.mean(batch_score).cpu()
-                batch_score = batch_score.numpy()[()]
+                batch_scores = batch_scores.cpu().numpy()
+                scores.extend(batch_scores)
 
-                score.append(batch_score)
-
-        return np.array(score)
+        return np.array(scores)
