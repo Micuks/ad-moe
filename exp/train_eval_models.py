@@ -49,6 +49,7 @@ def model_fit(
     y_val,
     X_test,
     y_test,
+    expert_type="mlp",
     epochs=50,
     seed=42,
 ):
@@ -57,6 +58,7 @@ def model_fit(
         if model_name == "MoEAnomalyDetection":
             model = model_class(
                 model_name=model_name,
+                expert_type=expert_type,
                 epochs=epochs,
                 seed=seed,
             )
@@ -148,16 +150,20 @@ def model_meta_fit(
     model_class,
     train_datasets,
     test_datasets,
+    expert_type="mlp",
     epochs=50,
     seed=42,
+    logs_interval=10,
 ):
     train_split, val_split = prepare_task_splits(train_datasets, val_ratio=0.1)
     # meta-training style fitting
     start_time = time.time()
     model = model_class(
         model_name=model_name,
+        expert_type=expert_type,
         epochs=epochs,
         seed=seed,
+        logs_interval=logs_interval,
     )
 
     # Meta-training
@@ -228,8 +234,10 @@ def model_meta_fit(
 def train_eval_mymodel_vanilla(
     results: list,
     seed: int,
+    expert_type="mlp",
     subset=1,
     epochs=50,
+    logs_interval=10,
 ):
     X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla(subset=subset)
 
@@ -244,8 +252,10 @@ def train_eval_mymodel_vanilla(
         y_val,
         X_test,
         y_test,
+        expert_type=expert_type,
         epochs=epochs,
         seed=seed,
+        logs_interval=logs_interval,
     )
     results.append([model_name, metrics, fit_time, val_predict_time, test_predict_time])
     print(
@@ -257,7 +267,9 @@ def train_eval_mymodel_vanilla(
     return results
 
 
-def train_eval_mymodel_meta(results: list, seed: int, subset=1, epochs=50):
+def train_eval_mymodel_meta(
+    results: list, seed: int, subset=1, epochs=50, logs_interval=10, expert_type="mlp"
+):
     train_datasets, test_datasets = prepare_data_meta_training(subset=subset)
     model = MoEAnomalyDetection
     model_name = "MoEAnomalyDetection"
@@ -266,8 +278,10 @@ def train_eval_mymodel_meta(results: list, seed: int, subset=1, epochs=50):
         model,
         train_datasets,
         test_datasets,
+        expert_type=expert_type,
         epochs=epochs,
         seed=seed,
+        logs_interval=logs_interval,
     )
     results.append([model_name, metrics, fit_time, val_predict_time, test_predict_time])
     print(

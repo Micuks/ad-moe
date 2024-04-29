@@ -6,13 +6,15 @@ from torch import nn
 from mymodel.model import _MOEAnomalyDetection
 from mymodel.fit import fit, meta_fit
 import traceback
+import torch.nn.functional as F
 
 
 class MoEAnomalyDetection:
     def __init__(
         self,
         seed: int,
-        model_name="MLP",
+        model_name="MoEAnomalyDetection",
+        expert_type="mlp",
         num_experts: int = 8,
         epochs: int = 50,
         batch_num: int = 20,
@@ -23,9 +25,13 @@ class MoEAnomalyDetection:
         inner_lr=1e-3,  # LR for task-specific updates
         meta_batch_size=32,  # Number of tasks per meta-update
         weight_decay: float = 1e-5,
+        logs_interval=10,
     ):
         self.seed = seed
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.logs_interval = logs_interval
+        self.model_name = model_name
+        self.expert_type = expert_type
         self.num_experts = num_experts
 
         # hyper parameters
@@ -64,7 +70,9 @@ class MoEAnomalyDetection:
 
         self.set_seed(self.seed)
         self.model = _MOEAnomalyDetection(
-            input_size=input_size, num_experts=self.num_experts
+            input_size=input_size,
+            num_experts=self.num_experts,
+            expert_type=self.expert_type,
         )
         self.model.apply(self.init_weights)
         self.model.to(self.device)
@@ -107,7 +115,9 @@ class MoEAnomalyDetection:
 
         self.set_seed(self.seed)
         self.model = _MOEAnomalyDetection(
-            input_size=input_size, num_experts=self.num_experts
+            input_size=input_size,
+            num_experts=self.num_experts,
+            expert_type=self.expert_type,
         )
         self.model.apply(self.init_weights)
         self.model.to(self.device)
@@ -133,6 +143,7 @@ class MoEAnomalyDetection:
             inner_update_steps=self.inner_update_steps,
             inner_lr=self.inner_lr,
             device=self.device,
+            logs_interval=self.logs_interval,
         )
 
         return self

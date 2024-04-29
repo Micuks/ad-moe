@@ -22,14 +22,30 @@ def main():
     seed = 42
     epochs = 50
     subset = 0.1
+    logs_interval = 5
+    expert_type = "autoencoder"  # or 'mlp'
     results = []
 
     # Train model w/o meta-learning
-    train_eval_mymodel_vanilla(results, seed, subset=subset, epochs=epochs)
+    train_eval_mymodel_vanilla(
+        results,
+        seed,
+        subset=subset,
+        epochs=epochs,
+        logs_interval=logs_interval,
+        expert_type=expert_type,
+    )
     train_eval_baselines_vanilla(results, seed)
 
     # Train model with meta-learning
-    train_eval_mymodel_meta(results, seed, subset=subset, epochs=epochs)
+    train_eval_mymodel_meta(
+        results,
+        seed,
+        subset=subset,
+        epochs=epochs,
+        logs_interval=logs_interval,
+        expert_type=expert_type,
+    )
 
     d = datetime.now()
     with io.open(f"./results/data{d}.json", "w") as f:

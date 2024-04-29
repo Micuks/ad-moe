@@ -27,8 +27,29 @@ class PreNet(nn.Module):
 
 
 class AutoEncoderExpert(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, input_size, rep_dim=32, hidden_dim=64) -> None:
+        super(AutoEncoderExpert, self).__init__()
+        # Encoder
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, rep_dim),
+            # nn.ReLU(),
+        )
+
+        # Decoder
+        self.decoder = (
+            nn.Sequential(
+                nn.Linear(rep_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, input_size),
+            ),
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
 
 
 class MLP(nn.Module):
@@ -65,14 +86,22 @@ class linear_bn_leakyReLU(nn.Module):
 
 class GatingNetwork(nn.Module):
     def __init__(
-        self, input_size, num_tasks=10, embedding_dim=32, inner_dim=128, num_experts=8
+        self,
+        input_size,
+        eps=1e-4,
+        num_tasks=38,
+        embedding_dim=32,
+        inner_dim=128,
+        num_experts=8,
     ):
         super(GatingNetwork, self).__init__()
-        self.task_embedding = nn.Embedding(num_tasks, embedding_dim)
+        # self.task_embedding = nn.Embedding(num_tasks, embedding_dim)
         self.gate = nn.Sequential(
-            nn.Linear(input_size + embedding_dim, inner_dim),
-            nn.ReLU(),
+            nn.Linear(input_size, inner_dim),
+            # nn.Linear(input_size + embedding_dim, inner_dim),
             # nn.LayerNorm(num_experts),  # To avoid NaN
+            nn.BatchNorm1d(inner_dim, eps=eps),  # To avoid NaN
+            nn.ReLU(),
             nn.Linear(inner_dim, num_experts),
             nn.Softmax(dim=1),
         )
@@ -85,21 +114,31 @@ class GatingNetwork(nn.Module):
             if m.bias is not None:
                 torch.nn.init.zeros_(m.bias)
 
-    def forward(self, x, task_id=0):
-        task_embed = self.task_embedding(task_id)
-        combined_input = torch.cat((x, task_embed), dim=1)
+    def forward(self, x):
+        # task_embed = self.task_embedding(task_id)
+        # combined_input = torch.cat((x, task_embed), dim=1)
+        # return self.gate(combined_input)
 
         return self.gate(x)
 
 
 class _MOEAnomalyDetection(nn.Module):
-    def __init__(self, input_size, num_experts, rep_dim=32):
+    def __init__(self, input_size, num_experts: int, rep_dim=32, expert_type="mlp"):
         super(_MOEAnomalyDetection, self).__init__()
 
         self.gating_network = GatingNetwork(input_size, num_experts)
-        self.experts = nn.ModuleList(
-            [MLP(input_size, rep_dim=rep_dim) for _ in range(num_experts)]
-        )
+        if expert_type == "mlp":
+            self.experts = nn.ModuleList(
+                [MLP(input_size, rep_dim=rep_dim) for _ in range(num_experts)]
+            )
+        elif expert_type == "autoencoder":
+            self.experts = nn.ModuleList(
+                [
+                    AutoEncoderExpert(input_size=input_size, rep_dim=rep_dim)
+                    for _ in range(num_experts)
+                ]
+            )
+
         self.score_transform = nn.Linear(rep_dim, 1)
 
         self.gating_network.apply(init_weights)
