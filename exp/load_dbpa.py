@@ -43,8 +43,9 @@ class DBPA_Dataset:
             "mysql_32_256",
         ]
 
-        self._num_norm = lambda x: len(x[x[len(x.columns) - 1] == 0])
-        self._num_anom = lambda x: len(x[x[len(x.columns) - 1] != 0])
+        self.label_col = lambda x: x.iloc[:, -1:]
+        self._num_norm = lambda x: len(x[x.iloc[:, -1:] == 0])
+        self._num_anom = lambda x: len(x[x.iloc[:, -1:] != 0])
 
     def _mark_label(self, label: str) -> int:
         anomalies = [
@@ -111,7 +112,7 @@ class DBPA_Dataset:
 
         return df
 
-    def load_dataset(self, drop_zero_cols=False, scaler_transform=True):
+    def load_dataset(self, drop_zero_cols=False, scaler_transform=True, subset=1):
         basepath = self.basepath
         train_specs = self.train_specs
         test_specs = self.test_specs
@@ -141,6 +142,16 @@ class DBPA_Dataset:
 
         dfs_train = [df[list(common_columns)] for df in dfs_train]
         dfs_test = [df[list(common_columns)] for df in dfs_test]
+
+        if subset:
+            dfs_train = [
+                df.sample(frac=subset, random_state=self.random_state)
+                for df in dfs_train
+            ]
+            dfs_test = [
+                df.sample(frac=subset, random_state=self.random_state)
+                for df in dfs_test
+            ]
 
         # # Drop Timestamp
         # dfs_train_notimestamp = [
@@ -224,24 +235,40 @@ class DBPA_Dataset:
 
     def _construct_dataset(self, dfs: list, anomaly_ratio=0.2) -> list:
         new_dfs = []
+        # Aggregate all normal data
+        normal_data_pool = pd.concat(
+            [df[df.iloc[:, -1] == 0] for df in dfs], axis=0
+        ).sample(frac=1, random_state=self.random_state)
+
         for df in dfs:
-            num_normal = self._num_anom(df)
-            required_num_anomaly = int(
-                num_normal * (anomaly_ratio / (1 - anomaly_ratio))
-            )
+            if df[df.iloc[:, -1] != 0].empty:
+                continue
 
-            normal_samples = df[df[len(df.columns) - 1] == 0]
-            anomaly_labels = df[df[len(df.columns) - 1] != 0].sample(
-                n=required_num_anomaly, random_state=self.random_state
-            )
+            num_anomaly = self._num_anom(df)
+            required_num_normal = int(num_anomaly * (1 - anomaly_ratio) / anomaly_ratio)
 
-            new_df = pd.concat([normal_samples, anomaly_labels]).sample(
-                frac=1, random_state=self.random_state, axis=0
-            )
-            # name label column as label
-            new_df.drop(df.columns[0], axis=1, inplace=True)
-            new_df.columns = [*new_df.columns[:-1], "label"]
+            if required_num_normal > len(normal_data_pool):
+                normal_samples = normal_data_pool.sample(
+                    n=required_num_normal,
+                    replace=True,
+                    random_state=self.random_state,
+                )
+            else:
+                normal_samples = normal_data_pool.sample(
+                    n=required_num_normal,
+                    replace=False,
+                    random_state=self.random_state,
+                )
 
-            new_dfs.append(new_df)
+            combined_df = pd.concat([df[df.iloc[:, -1] != 0], normal_samples]).sample(
+                frac=1, random_state=self.random_state
+            )
+            if len(combined_df.columns) <= 1:
+                raise ValueError("Insufficient feature columns retained for training")
+            # Drop timestamp, rename label
+            combined_df = combined_df.drop(columns=[combined_df.columns[0]])
+            combined_df.columns = [*combined_df.columns[:-1], "label"]
+
+            new_dfs.append(combined_df)
 
         return new_dfs
