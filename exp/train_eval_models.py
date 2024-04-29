@@ -18,8 +18,12 @@ from torch.utils.data import Subset
 
 
 def evaluate_model(name: str, scores, y_truth, threshold=0.5):
+    scores = np.array(scores)
+    y_truth = np.array(y_truth)
+
     if np.any(np.isnan(scores)) or np.any(np.isinf(scores)):
         print("Scores contain NaN or inf.")
+
     valid_idx = np.isfinite(scores)
     y_truth_valid = y_truth[valid_idx]
     scores_valid = scores[valid_idx]
@@ -29,11 +33,11 @@ def evaluate_model(name: str, scores, y_truth, threshold=0.5):
     y_pred = predict_labels(scores, threshold)
     auc = roc_auc_score(y_truth_valid, scores_valid)
     acc = accuracy_score(y_truth_valid, y_pred)
-    # recall = recall_score(y_truth_valid, y_pred)
-    # f1 = f1_score(y_truth_valid, y_pred)
+    recall = recall_score(y_truth_valid, y_pred)
+    f1 = f1_score(y_truth_valid, y_pred)
     # print(f"{name}: AUC:{auc} Acc:{acc} Recall:{recall} f1:{f1}")
-    return (auc, acc)
-    # return (auc, acc, recall, f1)
+    # return (auc, acc)
+    return (auc, acc, recall, f1)
 
 
 def model_fit(
@@ -45,11 +49,20 @@ def model_fit(
     y_val,
     X_test,
     y_test,
+    epochs=50,
     seed=42,
 ):
     try:
         # fit
-        model = model_class(model_name=model_name, seed=seed)
+        if model_name == "MoEAnomalyDetection":
+            model = model_class(
+                model_name=model_name,
+                epochs=epochs,
+                seed=seed,
+            )
+        else:
+            model = model_class(model_name=model_name, seed=seed)
+
         start_time = time.time()
         # if np.any(np.isnan(X_train)) or np.any(np.isinf(X_train)):
         #     print("X_train contains NaN or inf")
@@ -67,18 +80,18 @@ def model_fit(
         end_time = time.time()
         val_predict_time = end_time - start_time
         # print(score)
-        # val_auc, val_acc, val_recall, val_f1 = evaluate_model(model_name, score, y_val)
-        val_auc, val_acc = evaluate_model(model_name, score, y_val)
+        val_auc, val_acc, val_recall, val_f1 = evaluate_model(model_name, score, y_val)
+        # val_auc, val_acc = evaluate_model(model_name, score, y_val)
 
         # test
         start_time = time.time()
         score = model.predict_score(X_test)
         end_time = time.time()
         test_predict_time = end_time - start_time
-        # test_auc, test_acc, test_recall, test_f1 = evaluate_model(
-        #     model_name, score, y_test
-        # )
-        test_auc, test_acc = evaluate_model(model_name, score, y_test)
+        test_auc, test_acc, test_recall, test_f1 = evaluate_model(
+            model_name, score, y_test
+        )
+        # test_auc, test_acc = evaluate_model(model_name, score, y_test)
 
         data = (
             fit_time,
@@ -87,15 +100,14 @@ def model_fit(
             {
                 "val_auc": val_auc,
                 "val_acc": val_acc,
-                # "val_recall": val_recall,
-                # "val_f1": val_f1,
+                "val_recall": val_recall,
+                "val_f1": val_f1,
                 "test_auc": test_auc,
                 "test_acc": test_acc,
-                # "test_recall": test_recall,
-                # "test_f1": test_f1,
+                "test_recall": test_recall,
+                "test_f1": test_f1,
             },
         )
-        print(data)
         return data
 
     except Exception as e:
@@ -136,12 +148,17 @@ def model_meta_fit(
     model_class,
     train_datasets,
     test_datasets,
+    epochs=50,
     seed=42,
 ):
     train_split, val_split = prepare_task_splits(train_datasets, val_ratio=0.1)
     # meta-training style fitting
     start_time = time.time()
-    model = model_class(model_name=model_name, seed=seed)
+    model = model_class(
+        model_name=model_name,
+        epochs=epochs,
+        seed=seed,
+    )
 
     # Meta-training
     model.meta_fit(train_split)
@@ -162,11 +179,13 @@ def model_meta_fit(
             end_time = time.time()
             val_predict_time = end_time - start_time
 
-            val_scores.extend(score.numpy())
+            val_scores.extend(score)
             val_labels.extend(y_val.numpy())
             val_predict_times.append(val_predict_time)
 
-    val_auc, val_acc = evaluate_model(model_name, val_scores, val_labels)
+    val_auc, val_acc, val_recall, val_f1 = evaluate_model(
+        model_name, val_scores, val_labels
+    )
     mean_val_predict_time = np.mean(val_predict_times)
 
     # test
@@ -178,15 +197,15 @@ def model_meta_fit(
             task, batch_size=model.batch_size, shuffle=False
         ):
             start_time = time.time()
-            score = model.predict(X_test)
+            score = model.predict_score(X_test)
             end_time = time.time()
             test_predict_time = end_time - start_time
 
+            test_scores.extend(score)
+            test_labels.extend(y_test.numpy())
             test_predict_times.append(test_predict_time)
-            test_scores.extend(score.numpy())
-            test_labels.extend(y_test)
 
-    test_auc, test_acc = evaluate_model(model_name, score, y_test)
+    test_auc, test_acc, test_recall, test_f1 = evaluate_model(model_name, score, y_test)
     mean_test_predict_time = np.mean(test_predict_times)
 
     return (
@@ -196,14 +215,23 @@ def model_meta_fit(
         {
             "val_auc": val_auc,
             "val_acc": val_acc,
+            "val_recall": val_recall,
+            "val_f1": val_f1,
             "test_auc": test_auc,
             "test_acc": test_acc,
+            "test_recall": test_recall,
+            "test_f1": test_f1,
         },
     )
 
 
-def train_eval_mymodel_vanilla(results: list, seed: int):
-    X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla()
+def train_eval_mymodel_vanilla(
+    results: list,
+    seed: int,
+    subset=1,
+    epochs=50,
+):
+    X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla(subset=subset)
 
     model = MoEAnomalyDetection
     model_name = "MoEAnomalyDetection"
@@ -216,7 +244,8 @@ def train_eval_mymodel_vanilla(results: list, seed: int):
         y_val,
         X_test,
         y_test,
-        seed,
+        epochs=epochs,
+        seed=seed,
     )
     results.append([model_name, metrics, fit_time, val_predict_time, test_predict_time])
     print(
@@ -228,8 +257,8 @@ def train_eval_mymodel_vanilla(results: list, seed: int):
     return results
 
 
-def train_eval_mymodel_meta(results: list, seed: int):
-    train_datasets, test_datasets = prepare_data_meta_training()
+def train_eval_mymodel_meta(results: list, seed: int, subset=1, epochs=50):
+    train_datasets, test_datasets = prepare_data_meta_training(subset=subset)
     model = MoEAnomalyDetection
     model_name = "MoEAnomalyDetection"
     fit_time, val_predict_time, test_predict_time, metrics = model_meta_fit(
@@ -237,7 +266,8 @@ def train_eval_mymodel_meta(results: list, seed: int):
         model,
         train_datasets,
         test_datasets,
-        seed,
+        epochs=epochs,
+        seed=seed,
     )
     results.append([model_name, metrics, fit_time, val_predict_time, test_predict_time])
     print(

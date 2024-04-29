@@ -15,20 +15,24 @@ import io
 import json
 import traceback
 from train_eval_models import *
+from datetime import datetime
 
 
 def main():
     seed = 42
+    epochs = 50
+    subset = 0.1
     results = []
 
     # Train model w/o meta-learning
-    train_eval_mymodel_vanilla(results, seed)
+    train_eval_mymodel_vanilla(results, seed, subset=subset, epochs=epochs)
     train_eval_baselines_vanilla(results, seed)
 
     # Train model with meta-learning
-    train_eval_mymodel_meta(results, seed)
+    train_eval_mymodel_meta(results, seed, subset=subset, epochs=epochs)
 
-    with io.open("./data1.json", "w") as f:
+    d = datetime.now()
+    with io.open(f"./results/data{d}.json", "w") as f:
         json.dump(results, f)
     print(results)
 
