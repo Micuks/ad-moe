@@ -7,3 +7,4 @@ libstdc++.so.6
 *.log
 docs/*.json
 docs/*.typ
+results/*
