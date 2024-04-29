@@ -98,7 +98,13 @@ def meta_fit(
                 ) as (fmodel, diffopt):
                     for _ in range(inner_update_steps):
                         output = fmodel(x_task)
-                        task_loss = F.binary_cross_entropy_with_logits(output, y_task)
+                        expert_type = model.expert_type
+                        if expert_type == "mlp":
+                            task_loss = F.binary_cross_entropy_with_logits(
+                                output, y_task
+                            )
+                        elif expert_type == "autoencoder":
+                            task_loss = F.mse_loss(output, x_task)
                         diffopt.step(task_loss)
 
                     # Calculate validation loss
@@ -116,10 +122,6 @@ def meta_fit(
 
             if meta_batch_idx >= batch_num:
                 break
-
-        logger.info(
-            f"Epoch {epoch + 1}/{epochs}, Average Meta Loss: {epoch_meta_loss/(meta_batch_idx+1)}"
-        )
 
         if (epoch + 1) % logs_interval == 0:
             logger.info(
