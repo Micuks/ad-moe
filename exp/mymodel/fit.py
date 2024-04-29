@@ -2,6 +2,13 @@ import torch
 import higher
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(filename)s: [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger()
 
 
 class THEDataset(Dataset):
@@ -62,8 +69,9 @@ def meta_fit(
     meta_batch_size,
     inner_update_steps,
     inner_lr,
-    clip_value=1.0,
+    clip_value=None,  # 1.0 by default
     device=None,
+    logs_interval=10,
 ):
     model.train()
     meta_train_dataloader = [
@@ -71,13 +79,19 @@ def meta_fit(
         for dataset in train_datasets
     ]
 
+    # Log train info, like epochs, batch_size, etc.
+    logger.info(
+        f"Starting meta-training: epochs={epochs}, batch_size={batch_size}, meta_batch_size={meta_batch_size}"
+    )
+
     for epoch in range(epochs):
+        epoch_meta_loss = 0.0
         for meta_batch_idx, meta_batch in enumerate(meta_train_dataloader):
             meta_optimizer.zero_grad()
 
-            meta_loss = 0
+            meta_loss = torch.tensor(0.0, device=device, requires_grad=True)
             for x_task, y_task in meta_batch:
-                x_task, y_task = x_task.to(device), y_task.to(device).float()
+                x_task, y_task = x_task.to(device).float(), y_task.to(device).float()
 
                 with higher.innerloop_ctx(
                     model, optimizer, copy_initial_weights=False
@@ -87,17 +101,29 @@ def meta_fit(
                         task_loss = F.binary_cross_entropy_with_logits(output, y_task)
                         diffopt.step(task_loss)
 
-                    with torch.no_grad():
-                        output = fmodel(x_task)
-                        val_loss = F.binary_cross_entropy_with_logits(output, y_task)
-                    meta_loss += val_loss
+                    # Calculate validation loss
+                    output = fmodel(x_task)
+                    val_loss = F.binary_cross_entropy_with_logits(output, y_task)
+                    meta_loss = meta_loss + val_loss
+                    # val_loss.backward()
 
+            meta_loss.backward()
             # Gradient clipping
-            # torch.nn.utils.clip_grad_norm_(model.patameters(), clip_value)
-            meta_loss.backword()
+            if clip_value is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
             meta_optimizer.step()
+            epoch_meta_loss += meta_loss.item()
 
             if meta_batch_idx >= batch_num:
                 break
+
+        logger.info(
+            f"Epoch {epoch + 1}/{epochs}, Average Meta Loss: {epoch_meta_loss/(meta_batch_idx+1)}"
+        )
+
+        if (epoch + 1) % logs_interval == 0:
+            logger.info(
+                f"Epoch {epoch + 1}/{epochs}, Average Meta Loss: {epoch_meta_loss/(meta_batch_idx+1)}"
+            )
 
     return model
