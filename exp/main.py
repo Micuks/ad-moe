@@ -20,13 +20,13 @@ from datetime import datetime
 
 def main():
     seed = 42
-    epochs = 50
+    epochs = 5
     subset = 0.1
     logs_interval = 5
     expert_type = "autoencoder"  # or 'mlp'
     results = []
 
-    # Train model w/o meta-learning
+    # # Train model w/o meta-learning
     train_eval_mymodel_vanilla(
         results,
         seed,
@@ -35,7 +35,7 @@ def main():
         logs_interval=logs_interval,
         expert_type=expert_type,
     )
-    train_eval_baselines_vanilla(results, seed)
+    # train_eval_baselines_vanilla(results, seed)
 
     # Train model with meta-learning
     train_eval_mymodel_meta(

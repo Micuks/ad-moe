@@ -15,29 +15,115 @@ from train_eval_models import *
 from prepare_data import *
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset
+from sklearn.metrics import mean_squared_error
+
+unsupservised_models = [
+    "IForest",
+    "OCSVM",
+    "CBLOF",
+    "COF",
+    "COPOD",
+    "ECOD",
+    "FeatureBagging",
+    "HBOS",
+    "KNN",
+    "LODA",
+    "LOF",
+    "LSCP",
+    "MCD",
+    "PCA",
+    "SOD",
+    "SOGAAL",
+    "MOGAAL",
+    "DeepSVDD",
+    "DAGMM",
+    "AutoEncoder-MoEAnomalyDetection",
+]
+semi_supervised_models = [
+    "GANomaly",
+    "DeepSAD",
+    "REPEN",
+    "DevNet",
+    "PReNet",
+    "FEAWAD",
+    "XGBOD",
+]
+supervised_models = [
+    "LR",
+    "NB",
+    "SVM",
+    "MLP",
+    "RF",
+    "LGB",
+    "XGB",
+    "CatB",
+    "ResNet",
+    "FTTransformer",
+    "MLP-MoEAnomalyDetection",
+]
+
+
+def get_mymodel_name(expert_type="mlp"):
+    if expert_type == "mlp":
+        model_name = "MLP-MoEAnomalyDetection"
+    elif expert_type == "autoencoder":
+        model_name = "AutoEncoder-MoEAnomalyDetection"
+    else:
+        model_name = "MoEAnomalyDetection"
+
+    return model_name
+
+
+def calculate_threshold(errors, sensitivity=2):
+    mean_error = np.mean(errors)
+    std_error = np.std(errors)
+    return mean_error + sensitivity * std_error
 
 
 def evaluate_model(name: str, scores, y_truth, threshold=0.5):
-    scores = np.array(scores)
-    y_truth = np.array(y_truth)
+
+    if not isinstance(scores, np.ndarray):
+        scores = np.array(scores)
+    if not isinstance(y_truth, np.ndarray):
+        y_truth = np.array(y_truth)
 
     if np.any(np.isnan(scores)) or np.any(np.isinf(scores)):
         print("Scores contain NaN or inf.")
 
-    valid_idx = np.isfinite(scores)
-    y_truth_valid = y_truth[valid_idx]
-    scores_valid = scores[valid_idx]
-    # print(scores_valid)
-
     predict_labels = lambda scores, threshold=0.5: (scores > threshold).astype(int)
-    y_pred = predict_labels(scores, threshold)
-    auc = roc_auc_score(y_truth_valid, scores_valid)
-    acc = accuracy_score(y_truth_valid, y_pred)
-    recall = recall_score(y_truth_valid, y_pred)
-    f1 = f1_score(y_truth_valid, y_pred)
-    # print(f"{name}: AUC:{auc} Acc:{acc} Recall:{recall} f1:{f1}")
-    # return (auc, acc)
+
+    # MSE loss models
+    if name in unsupservised_models:
+        threshold = calculate_threshold(scores)
+        y_pred = predict_labels(scores, threshold)
+        auc = roc_auc_score(y_truth, y_pred)
+        acc = accuracy_score(y_truth, y_pred)
+        recall = recall_score(y_truth, y_pred)
+        f1 = f1_score(y_truth, y_pred)
+    else:
+        valid_idx = np.isfinite(scores)
+        y_truth_valid = y_truth[valid_idx]
+        scores_valid = scores[valid_idx]
+        y_pred = predict_labels(scores_valid, threshold)
+        auc = roc_auc_score(y_truth_valid, scores_valid)
+        acc = accuracy_score(y_truth_valid, y_pred)
+        recall = recall_score(y_truth_valid, y_pred)
+        f1 = f1_score(y_truth_valid, y_pred)
+
     return (auc, acc, recall, f1)
+
+
+def evaluate_autoencoder_model(name: str, reconstructions, originals, threshold):
+    threshold = calculate_threshold(reconstructions)
+
+    if not isinstance(reconstructions, np.ndarray):
+        reconstructions = np.array(reconstructions)
+    if not isinstance(originals, np.ndarray):
+        originals = np.array(originals)
+
+    mse = mean_squared_error(originals, reconstructions)
+    predict_labels = lambda mse, threshold=0.5: (mse > threshold).astype(int)
+    y_pred = predict_labels(mse, threshold)
 
 
 def model_fit(
@@ -50,73 +136,74 @@ def model_fit(
     X_test,
     y_test,
     expert_type="mlp",
+    logs_interval=10,
     epochs=50,
     seed=42,
 ):
-    try:
-        # fit
-        if model_name == "MoEAnomalyDetection":
-            model = model_class(
-                model_name=model_name,
-                expert_type=expert_type,
-                epochs=epochs,
-                seed=seed,
-            )
-        else:
-            model = model_class(model_name=model_name, seed=seed)
+    # fit
+    if model_name == "MoEAnomalyDetection":
+        model = model_class(
+            model_name=model_name,
+            expert_type=expert_type,
+            logs_interval=logs_interval,
+            epochs=epochs,
+            seed=seed,
+        )
+    else:
+        model = model_class(model_name=model_name, seed=seed)
 
-        start_time = time.time()
-        # if np.any(np.isnan(X_train)) or np.any(np.isinf(X_train)):
-        #     print("X_train contains NaN or inf")
-        model.fit(X_train, y_train)
-        end_time = time.time()
-        fit_time = end_time - start_time
+    start_time = time.time()
+    # if np.any(np.isnan(X_train)) or np.any(np.isinf(X_train)):
+    #     print("X_train contains NaN or inf")
+    if isinstance(X_train, np.ndarray):
+        X_train = torch.from_numpy(X_train).float()
+    model.fit(X_train, y_train)
+    end_time = time.time()
+    fit_time = end_time - start_time
 
-        # predict
-        # val
-        start_time = time.time()
-        if model_name in ["DAGMM"]:
-            score = model.predict_score(X_test=X_val, X_train=X_train)
-        else:
-            score = model.predict_score(X_val)
-        end_time = time.time()
-        val_predict_time = end_time - start_time
-        # print(score)
-        val_auc, val_acc, val_recall, val_f1 = evaluate_model(model_name, score, y_val)
-        # val_auc, val_acc = evaluate_model(model_name, score, y_val)
+    # predict
+    # val
+    start_time = time.time()
+    if model_name in ["DAGMM"]:
+        score = model.predict_score(X_test=X_val, X_train=X_train)
+    else:
+        score = model.predict_score(X_val)
+    end_time = time.time()
+    val_predict_time = end_time - start_time
+    # print(score)
+    val_auc, val_acc, val_recall, val_f1 = evaluate_model(model_name, score, y_val)
+    # val_auc, val_acc = evaluate_model(model_name, score, y_val)
 
-        # test
-        start_time = time.time()
+    # test
+    start_time = time.time()
+    if model_name in ["DAGMM"]:
+        score = model.predict_score(X_test=X_test)
+    else:
         score = model.predict_score(X_test)
-        end_time = time.time()
-        test_predict_time = end_time - start_time
-        test_auc, test_acc, test_recall, test_f1 = evaluate_model(
-            model_name, score, y_test
-        )
-        # test_auc, test_acc = evaluate_model(model_name, score, y_test)
+    end_time = time.time()
+    test_predict_time = end_time - start_time
+    test_auc, test_acc, test_recall, test_f1 = evaluate_model(model_name, score, y_test)
+    # test_auc, test_acc = evaluate_model(model_name, score, y_test)
 
-        data = (
-            fit_time,
-            val_predict_time,
-            test_predict_time,
-            {
-                "val_auc": val_auc,
-                "val_acc": val_acc,
-                "val_recall": val_recall,
-                "val_f1": val_f1,
-                "test_auc": test_auc,
-                "test_acc": test_acc,
-                "test_recall": test_recall,
-                "test_f1": test_f1,
-            },
-        )
-        return data
+    data = (
+        fit_time,
+        val_predict_time,
+        test_predict_time,
+        {
+            "val_auc": val_auc,
+            "val_acc": val_acc,
+            "val_recall": val_recall,
+            "val_f1": val_f1,
+            "test_auc": test_auc,
+            "test_acc": test_acc,
+            "test_recall": test_recall,
+            "test_f1": test_f1,
+        },
+    )
+    return data
 
-    except Exception as e:
-        print(f"Error running {model_name}: {e}")
-        raise Exception(e)
-        # Print e's traceback
-        # traceback.print_exc()
+    # print(f"Error running {model_name}: {e}")
+    # raise Exception(e)
 
 
 def split_train_val_dataset(dataset, val_ratio=0.1):
@@ -242,7 +329,7 @@ def train_eval_mymodel_vanilla(
     X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla(subset=subset)
 
     model = MoEAnomalyDetection
-    model_name = "MoEAnomalyDetection"
+    model_name = get_mymodel_name(expert_type)
     fit_time, val_predict_time, test_predict_time, metrics = model_fit(
         model_name,
         model,
@@ -272,7 +359,7 @@ def train_eval_mymodel_meta(
 ):
     train_datasets, test_datasets = prepare_data_meta_training(subset=subset)
     model = MoEAnomalyDetection
-    model_name = "MoEAnomalyDetection"
+    model_name = get_mymodel_name(expert_type)
     fit_time, val_predict_time, test_predict_time, metrics = model_meta_fit(
         model_name,
         model,

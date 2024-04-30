@@ -4,6 +4,9 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, DataLoader
 import torch
+import logging
+
+logger = logging.getLogger("prepare_data")
 
 
 def prepare_data_vanilla(subset=1):
@@ -25,8 +28,8 @@ def prepare_data_vanilla(subset=1):
     # total_train["label"] = total_train["label"].astype(int)
     # total_test["label"] = total_test["label"].astype(int)
 
-    print("total_train", total_train.describe())
-    print("total_test", total_test.describe())
+    logger.debug("total_train", total_train.describe())
+    logger.debug("total_test", total_test.describe())
 
     X = total_train.drop(columns=["label"]).to_numpy()
     y = total_train["label"].to_numpy()
