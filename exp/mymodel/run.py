@@ -60,8 +60,11 @@ class MoEAnomalyDetection:
 
     def fit(self, X_train, y_train, ratio=None):
         try:
-            X_train = X_train.astype("float32")
-            self.X_train_tensor = torch.from_numpy(X_train).float()
+            if isinstance(X_train, np.ndarray):
+                X_train = X_train.astype("float32")
+                self.X_train_tensor = torch.from_numpy(X_train).float()
+            else:
+                self.X_train_tensor = X_train
             input_size = X_train.shape[1]
         except Exception as e:
             raise ValueError(e)

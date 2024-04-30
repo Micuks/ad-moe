@@ -38,12 +38,10 @@ class AutoEncoderExpert(nn.Module):
         )
 
         # Decoder
-        self.decoder = (
-            nn.Sequential(
-                nn.Linear(rep_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, input_size),
-            ),
+        self.decoder = nn.Sequential(
+            nn.Linear(rep_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, input_size),
         )
 
     def forward(self, x):
@@ -125,12 +123,15 @@ class GatingNetwork(nn.Module):
 class _MOEAnomalyDetection(nn.Module):
     def __init__(self, input_size, num_experts: int, rep_dim=32, expert_type="mlp"):
         super(_MOEAnomalyDetection, self).__init__()
+        self.expert_type = expert_type
 
         self.gating_network = GatingNetwork(input_size, num_experts)
         if expert_type == "mlp":
             self.experts = nn.ModuleList(
                 [MLP(input_size, rep_dim=rep_dim) for _ in range(num_experts)]
             )
+            self.score_transform = nn.Linear(rep_dim, 1)
+            self.score_transform.apply(init_weights)
         elif expert_type == "autoencoder":
             self.experts = nn.ModuleList(
                 [
@@ -138,19 +139,22 @@ class _MOEAnomalyDetection(nn.Module):
                     for _ in range(num_experts)
                 ]
             )
-
-        self.score_transform = nn.Linear(rep_dim, 1)
+            # self.score_transform = nn.Linear(input_size, 1)
 
         self.gating_network.apply(init_weights)
         [expert.apply(init_weights) for expert in self.experts]
-        self.score_transform.apply(init_weights)
 
     def forward(self, x):
         gate_weights = self.gating_network(x)
-
-        scores = [self.score_transform(expert(x)) for expert in self.experts]
-        scores = torch.stack(scores, dim=1).squeeze(-1)
-        # print(gate_weights.shape, scores.shape)
-        final_score = torch.sum(gate_weights * scores, dim=1)
+        scores = [expert(x) for expert in self.experts]
+        if self.expert_type == "mlp":
+            scores = [self.score_transform(score) for score in scores]
+            scores = torch.stack(scores, dim=1).squeeze(-1)
+            # print(gate_weights.shape, scores.shape)
+            final_score = torch.sum(gate_weights * scores, dim=1)
+        elif self.expert_type == "autoencoder":
+            scores = torch.stack(scores, dim=1)
+            # print(gate_weights.shape, scores.shape)
+            final_score = torch.sum(gate_weights.unsqueeze(-1) * scores, dim=1)
 
         return final_score

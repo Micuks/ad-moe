@@ -35,6 +35,7 @@ def fit(
     device=None,
 ):
     model.train()
+    expert_type = model.expert_type
     for epoch in range(epochs):
         dataloader = DataLoader(
             THEDataset(X_train_tensor, y_train), batch_size=batch_size, shuffle=True
@@ -47,7 +48,10 @@ def fit(
             optimizer.zero_grad()
             # with torch.autograd.detect_anomaly():
             output = model(x)
-            loss = torch.nn.functional.binary_cross_entropy_with_logits(output, y)
+            if expert_type == "mlp":
+                loss = F.binary_cross_entropy_with_logits(output, y)
+            elif expert_type == "autoencoder":
+                loss = F.mse_loss(output, x)
             loss.backward()
             for name, param in model.named_parameters():
                 if param.grad is not None:
@@ -74,6 +78,7 @@ def meta_fit(
     logs_interval=10,
 ):
     model.train()
+    expert_type = model.expert_type
     meta_train_dataloader = [
         DataLoader(dataset, batch_size=meta_batch_size, shuffle=True)
         for dataset in train_datasets
@@ -98,7 +103,6 @@ def meta_fit(
                 ) as (fmodel, diffopt):
                     for _ in range(inner_update_steps):
                         output = fmodel(x_task)
-                        expert_type = model.expert_type
                         if expert_type == "mlp":
                             task_loss = F.binary_cross_entropy_with_logits(
                                 output, y_task
@@ -109,7 +113,10 @@ def meta_fit(
 
                     # Calculate validation loss
                     output = fmodel(x_task)
-                    val_loss = F.binary_cross_entropy_with_logits(output, y_task)
+                    if expert_type == "mlp":
+                        val_loss = F.binary_cross_entropy_with_logits(output, y_task)
+                    elif expert_type == "autoencoder":
+                        val_loss = F.mse_loss(output, x_task)
                     meta_loss = meta_loss + val_loss
                     # val_loss.backward()
 
