@@ -7,6 +7,7 @@ from mymodel.model import _MOEAnomalyDetection
 from mymodel.fit import fit, meta_fit
 import traceback
 import torch.nn.functional as F
+import logging
 
 
 class MoEAnomalyDetection:
@@ -27,11 +28,13 @@ class MoEAnomalyDetection:
         weight_decay: float = 1e-5,
         logs_interval=10,
     ):
+        self.logger = logging.getLogger("MoEAnomalyDetection")
         self.seed = seed
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logs_interval = logs_interval
         self.model_name = model_name
         self.expert_type = expert_type
+        self.logger.info(expert_type)
         self.num_experts = num_experts
 
         # hyper parameters

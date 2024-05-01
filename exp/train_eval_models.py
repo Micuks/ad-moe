@@ -80,7 +80,7 @@ def calculate_threshold(errors, sensitivity=2):
     return mean_error + sensitivity * std_error
 
 
-def evaluate_model(name: str, scores, y_truth, threshold=0.5):
+def evaluate_model(name: str, scores, y_truth, x_original=None, threshold=0.5):
 
     if not isinstance(scores, np.ndarray):
         scores = np.array(scores)
@@ -95,7 +95,10 @@ def evaluate_model(name: str, scores, y_truth, threshold=0.5):
     # MSE loss models
     if name in unsupservised_models:
         threshold = calculate_threshold(scores)
-        y_pred = predict_labels(scores, threshold)
+        # mse = mean_squared_error(y_truth, scores)
+        mse = np.mean((x_original - scores) ** 2, axis=1)
+        print(mse.shape)
+        y_pred = predict_labels(mse, threshold)
         auc = roc_auc_score(y_truth, y_pred)
         acc = accuracy_score(y_truth, y_pred)
         recall = recall_score(y_truth, y_pred)
@@ -141,7 +144,7 @@ def model_fit(
     seed=42,
 ):
     # fit
-    if model_name == "MoEAnomalyDetection":
+    if "MoEAnomalyDetection" in model_name:
         model = model_class(
             model_name=model_name,
             expert_type=expert_type,
@@ -171,7 +174,9 @@ def model_fit(
     end_time = time.time()
     val_predict_time = end_time - start_time
     # print(score)
-    val_auc, val_acc, val_recall, val_f1 = evaluate_model(model_name, score, y_val)
+    val_auc, val_acc, val_recall, val_f1 = evaluate_model(
+        model_name, score, y_val, x_original=X_val
+    )
     # val_auc, val_acc = evaluate_model(model_name, score, y_val)
 
     # test
@@ -182,7 +187,9 @@ def model_fit(
         score = model.predict_score(X_test)
     end_time = time.time()
     test_predict_time = end_time - start_time
-    test_auc, test_acc, test_recall, test_f1 = evaluate_model(model_name, score, y_test)
+    test_auc, test_acc, test_recall, test_f1 = evaluate_model(
+        model_name, score, y_test, x_original=X_test
+    )
     # test_auc, test_acc = evaluate_model(model_name, score, y_test)
 
     data = (
@@ -277,7 +284,7 @@ def model_meta_fit(
             val_predict_times.append(val_predict_time)
 
     val_auc, val_acc, val_recall, val_f1 = evaluate_model(
-        model_name, val_scores, val_labels
+        model_name, val_scores, val_labels, x_original=X_val
     )
     mean_val_predict_time = np.mean(val_predict_times)
 
@@ -298,7 +305,9 @@ def model_meta_fit(
             test_labels.extend(y_test.numpy())
             test_predict_times.append(test_predict_time)
 
-    test_auc, test_acc, test_recall, test_f1 = evaluate_model(model_name, score, y_test)
+    test_auc, test_acc, test_recall, test_f1 = evaluate_model(
+        model_name, score, y_test, x_original=X_test
+    )
     mean_test_predict_time = np.mean(test_predict_times)
 
     return (
@@ -329,6 +338,7 @@ def train_eval_mymodel_vanilla(
     X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla(subset=subset)
 
     model = MoEAnomalyDetection
+    print(expert_type)
     model_name = get_mymodel_name(expert_type)
     fit_time, val_predict_time, test_predict_time, metrics = model_fit(
         model_name,

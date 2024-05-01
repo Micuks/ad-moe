@@ -147,6 +147,7 @@ class _MOEAnomalyDetection(nn.Module):
     def forward(self, x):
         gate_weights = self.gating_network(x)
         scores = [expert(x) for expert in self.experts]
+        # print("expert_type: ", self.expert_type)
         if self.expert_type == "mlp":
             scores = [self.score_transform(score) for score in scores]
             scores = torch.stack(scores, dim=1).squeeze(-1)
