@@ -10,8 +10,8 @@ logger = logging.getLogger("prepare_data")
 
 
 def prepare_data_vanilla(subset=1):
-    # dataset = OceanBase_Dataset(anomaly_ratio=0.2)
-    dataset = DBPA_Dataset(anomaly_ratio=0.2)
+    dataset = OceanBase_Dataset(anomaly_ratio=0.2)
+    # dataset = DBPA_Dataset(anomaly_ratio=0.2)
     # dfs_train_all, dfs_test_all = ob_dataset.load_dataset(drop_zero_cols=True)
     dfs_train_all, dfs_test_all = dataset.load_dataset(
         subset=subset, drop_zero_cols=False
@@ -24,7 +24,8 @@ def prepare_data_vanilla(subset=1):
 
     total_train = pd.concat(dfs_train_all)
     total_test = pd.concat(dfs_test_all)
-    total_train, total_test = dataset._drop_nans(total_train, total_test)
+    if isinstance(dataset, DBPA_Dataset):
+        total_train, total_test = dataset._drop_nans(total_train, total_test)
     # total_train["label"] = total_train["label"].astype(int)
     # total_test["label"] = total_test["label"].astype(int)
 
@@ -70,7 +71,8 @@ def prepare_data_meta_training(subset=False):
     """
     Task-specific meta-training
     """
-    dataset = DBPA_Dataset(anomaly_ratio=0.2)
+    dataset = OceanBase_Dataset(anomaly_ratio=0.2)
+    # dataset = DBPA_Dataset(anomaly_ratio=0.2)
     dfs_train_all, dfs_test_all = dataset.load_dataset(subset=subset)
     train_datasets = [TaskSpecificDataset(df) for df in dfs_train_all]
     test_datasets = [TaskSpecificDataset(df) for df in dfs_test_all]

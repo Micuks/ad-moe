@@ -99,6 +99,8 @@ def evaluate_model(name: str, scores, y_truth, x_original=None, threshold=0.5):
         mse = np.mean((x_original - scores) ** 2, axis=1)
         print(mse.shape)
         y_pred = predict_labels(mse, threshold)
+        print(f"y_truth[{set(a for a in y_truth)}]")
+        print(f"y_pred[{set(a for a in y_pred)}]")
         auc = roc_auc_score(y_truth, y_pred)
         acc = accuracy_score(y_truth, y_pred)
         recall = recall_score(y_truth, y_pred)
@@ -108,6 +110,8 @@ def evaluate_model(name: str, scores, y_truth, x_original=None, threshold=0.5):
         y_truth_valid = y_truth[valid_idx]
         scores_valid = scores[valid_idx]
         y_pred = predict_labels(scores_valid, threshold)
+        print(f"y_truth[{set(a for a in y_truth)}]")
+        print(f"y_pred[{set(a for a in y_pred)}]")
         auc = roc_auc_score(y_truth_valid, scores_valid)
         acc = accuracy_score(y_truth_valid, y_pred)
         recall = recall_score(y_truth_valid, y_pred)
@@ -270,6 +274,7 @@ def model_meta_fit(
     val_scores = []
     val_labels = []
     val_predict_times = []
+    X_vals = []
     for task in val_split:
         for X_val, y_val in DataLoader(
             task, batch_size=model.batch_size, shuffle=False
@@ -279,12 +284,13 @@ def model_meta_fit(
             end_time = time.time()
             val_predict_time = end_time - start_time
 
+            X_vals.extend(X_val)
             val_scores.extend(score)
             val_labels.extend(y_val.numpy())
             val_predict_times.append(val_predict_time)
 
     val_auc, val_acc, val_recall, val_f1 = evaluate_model(
-        model_name, val_scores, val_labels, x_original=X_val
+        model_name, val_scores, val_labels, x_original=X_vals
     )
     mean_val_predict_time = np.mean(val_predict_times)
 
@@ -292,6 +298,7 @@ def model_meta_fit(
     test_scores = []
     test_labels = []
     test_predict_times = []
+    X_tests = []
     for task in test_datasets:
         for X_test, y_test in DataLoader(
             task, batch_size=model.batch_size, shuffle=False
@@ -301,12 +308,13 @@ def model_meta_fit(
             end_time = time.time()
             test_predict_time = end_time - start_time
 
+            X_tests.extend(X_test)
             test_scores.extend(score)
             test_labels.extend(y_test.numpy())
             test_predict_times.append(test_predict_time)
 
     test_auc, test_acc, test_recall, test_f1 = evaluate_model(
-        model_name, score, y_test, x_original=X_test
+        model_name, score, y_test, x_original=X_tests
     )
     mean_test_predict_time = np.mean(test_predict_times)
 
