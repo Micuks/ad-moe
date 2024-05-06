@@ -46,13 +46,14 @@ class OceanBase_Dataset:
             "memory_limit_4_16_merge",
         ]
 
-        self.num_norm = lambda x: len(x[x["label"] == 0])
-        self.num_anom = lambda x: len(x[x["label"] != 0])
+        self.label_col = lambda x: x.iloc[:, -1:]
+        self._num_norm = lambda x: len(x[x.iloc[:, -1:] == 0])
+        self._num_anom = lambda x: len(x[x.iloc[:, -1:] != 0])
 
     def _get_dfs(self, tasks: list):
         return [[] for _ in range(len(tasks))]
 
-    def load_dataset(self, drop_zero_cols=False) -> tuple[list, list]:
+    def load_dataset(self, drop_zero_cols=False, scaler_transform=False, subset=1):
         basepath = self.basepath
         train_csvs = self.train_csvs
         test_csvs = self.test_csvs
@@ -80,10 +81,10 @@ class OceanBase_Dataset:
         dfs_train_all = [pd.concat(dfs, axis=0) for dfs in dfs_train]
         dfs_test_all = [pd.concat(dfs, axis=0) for dfs in dfs_test]
         print(
-            f"dfs_train_all[{[df.shape for df in dfs_train_all]}], normal[{[self.num_norm(df) for df in dfs_train_all]}], anomaly[{[self.num_anom(df) for df in dfs_train_all]}]"
+            f"dfs_train_all[{[df.shape for df in dfs_train_all]}], normal[{[self._num_norm(df) for df in dfs_train_all]}], anomaly[{[self._num_anom(df) for df in dfs_train_all]}]"
         )
         print(
-            f"dfs_test_all[{[df.shape for df in dfs_test_all]}], normal[{[self.num_norm(df) for df in dfs_test_all]}], anomaly[{[self.num_anom(df) for df in dfs_test_all]}]"
+            f"dfs_test_all[{[df.shape for df in dfs_test_all]}], normal[{[self._num_norm(df) for df in dfs_test_all]}], anomaly[{[self._num_anom(df) for df in dfs_test_all]}]"
         )
 
         if drop_zero_cols:
@@ -99,16 +100,16 @@ class OceanBase_Dataset:
         #
         # Reconstruct dataset with respect to anomaly ratio
 
-        dfs_train_all = self.construct_dataset(
+        dfs_train_all = self._construct_dataset(
             dfs_train_all, anomaly_ratio=self.anomaly_ratio
         )
-        dfs_test_all = self.construct_dataset(dfs_test_all, anomaly_ratio=0.5)
+        dfs_test_all = self._construct_dataset(dfs_test_all, anomaly_ratio=0.5)
 
         print(
-            f"dfs_train_all[{[df.shape for df in dfs_train_all]}], normal[{[self.num_norm(df) for df in dfs_train_all]}], anomaly[{[self.num_anom(df) for df in dfs_train_all]}]"
+            f"dfs_train_all[{[df.shape for df in dfs_train_all]}], normal[{[self._num_norm(df) for df in dfs_train_all]}], anomaly[{[self._num_anom(df) for df in dfs_train_all]}]"
         )
         print(
-            f"dfs_test_all[{[df.shape for df in dfs_test_all]}], normal[{[self.num_norm(df) for df in dfs_test_all]}], anomaly[{[self.num_anom(df) for df in dfs_test_all]}]"
+            f"dfs_test_all[{[df.shape for df in dfs_test_all]}], normal[{[self._num_norm(df) for df in dfs_test_all]}], anomaly[{[self._num_anom(df) for df in dfs_test_all]}]"
         )
 
         return dfs_train_all, dfs_test_all
@@ -127,22 +128,42 @@ class OceanBase_Dataset:
 
         return dfs_train_all, dfs_test_all
 
+    def _construct_dataset(self, dfs, anomaly_ratio=0.1):
+        new_dfs = []
+        # Aggregate all normal data
+        normal_data_pool = pd.concat(
+            [df[df.iloc[:, -1] == 0] for df in dfs], axis=0
+        ).sample(frac=1, random_state=self.random_state)
 
-def _construct_dataset(self, dfs, anomaly_ratio=0.1):
-    new_dfs = []
-    for df in dfs:
-        num_normal = self.num_anom(df)
-        required_num_anomaly = int(num_normal * (anomaly_ratio / (1 - anomaly_ratio)))
+        for df in dfs:
+            if df[df.iloc[:, -1] != 0].empty:
+                continue
 
-        normal_samples = df[df["label"] == 0]
-        anomaly_samples = df[df["label"] != 0].sample(
-            n=required_num_anomaly, random_state=self.random_state
-        )
+            num_anomaly = self._num_anom(df)
+            required_num_normal = int(num_anomaly * (1 - anomaly_ratio) / anomaly_ratio)
 
-        new_dfs.append(
-            pd.concat([normal_samples, anomaly_samples]).sample(
-                frac=1, random_state=self.random_state, axis=0
+            if required_num_normal > len(normal_data_pool):
+                normal_samples = normal_data_pool.sample(
+                    n=required_num_normal,
+                    replace=True,
+                    random_state=self.random_state,
+                )
+            else:
+                normal_samples = normal_data_pool.sample(
+                    n=required_num_normal,
+                    replace=False,
+                    random_state=self.random_state,
+                )
+
+            combined_df = pd.concat([df[df.iloc[:, -1] != 0], normal_samples]).sample(
+                frac=1, random_state=self.random_state
             )
-        )
+            if len(combined_df.columns) <= 1:
+                raise ValueError("Insufficient feature columns retained for training")
+            # Drop timestamp, rename label have already done above
+            # combined_df = combined_df.drop(columns=[combined_df.columns[0]])
+            combined_df.columns = [*combined_df.columns[:-1], "label"]
 
-    return new_dfs
+            new_dfs.append(combined_df)
+
+        return new_dfs
