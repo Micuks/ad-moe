@@ -112,7 +112,7 @@ class DBPA_Dataset:
 
         return df
 
-    def load_dataset(self, drop_zero_cols=False, scaler_transform=True, subset=1):
+    def load_dataset(self, drop_zero_cols=False, scaler_transform=False, subset=1):
         basepath = self.basepath
         train_specs = self.train_specs
         test_specs = self.test_specs
@@ -153,31 +153,45 @@ class DBPA_Dataset:
                 for df in dfs_test
             ]
 
-        # # Drop Timestamp
-        # dfs_train_notimestamp = [
-        #     df.drop(df.columns[0], axis=1, inplace=False) for df in dfs_train
-        # ]
-        # dfs_test_notimestamp = [
-        #     df.drop(df.columns[0], axis=1, inplace=False) for df in dfs_test
-        # ]
+        def logs(str, dfs):
+            dfs_combined = pd.concat(dfs, ignore_index=True, axis=0)
+            self.logger.info(
+                f"{str}, {dfs[0].shape}, {set(dfs_combined.iloc[:,-1].to_list())}"
+            )
 
-        # if scaler_transform:
-        #     combined_train = pd.concat(dfs_train_notimestamp, ignore_index=True, axis=0)
+        logs("before drop timestamp", dfs_train)
 
-        #     scaler = StandardScaler()
-        #     scaler.fit(combined_train)
+        # Drop Timestamp
+        dfs_train = [df.drop(columns=df.columns[0], axis=1) for df in dfs_train]
+        dfs_test = [df.drop(columns=df.columns[0], axis=1) for df in dfs_test]
 
-        #     dfs_train_all = [
-        #         pd.DataFrame(scaler.transform(df), columns=df.columns)
-        #         for df in dfs_train_notimestamp
-        #     ]
-        #     dfs_test_all = [
-        #         pd.DataFrame(scaler.transform(df), columns=df.columns)
-        #         for df in dfs_test_notimestamp
-        #     ]
-        # else:
-        #     dfs_train_all = dfs_train_notimestamp
-        #     dfs_test_all = dfs_test_notimestamp
+        logs("after drop timestamp", dfs_train)
+
+        if scaler_transform:
+            combined_train_df = pd.concat(dfs_train, ignore_index=True, axis=0)
+            print("combined train df", combined_train_df.shape)
+            print(set(a for a in combined_train_df.iloc[:, -1]))
+            features_train = combined_train_df.iloc[:, :-1]
+
+            scaler = StandardScaler()
+            scaler.fit(features_train)
+
+            dfs_train_transformed = [
+                pd.DataFrame(
+                    scaler.transform(df.iloc[:, :-1]), columns=df.columns[:-1]
+                ).assign(label=df.iloc[:, -1])
+                for df in dfs_train
+            ]
+            dfs_train = dfs_train_transformed
+            logs("dfs_train after transform", dfs_train)
+
+            dfs_test = [
+                pd.DataFrame(
+                    scaler.transform(df[df.columns[:-1]]), columns=df.columns[:-1]
+                ).assign(label=df.iloc[:, -1])
+                for df in dfs_test
+            ]
+            logs("dfs_test after transform", dfs_test)
 
         dfs_train_all = dfs_train
         dfs_test_all = dfs_test
@@ -195,6 +209,8 @@ class DBPA_Dataset:
         dfs_test_all = self._construct_dataset(
             dfs_test_all, anomaly_ratio=anomaly_ratio
         )
+
+        logs("after _construct_databset", dfs_train)
 
         return dfs_train_all, dfs_test_all
 
@@ -265,8 +281,8 @@ class DBPA_Dataset:
             )
             if len(combined_df.columns) <= 1:
                 raise ValueError("Insufficient feature columns retained for training")
-            # Drop timestamp, rename label
-            combined_df = combined_df.drop(columns=[combined_df.columns[0]])
+            # Drop timestamp, rename label have already done above
+            # combined_df = combined_df.drop(columns=[combined_df.columns[0]])
             combined_df.columns = [*combined_df.columns[:-1], "label"]
 
             new_dfs.append(combined_df)
