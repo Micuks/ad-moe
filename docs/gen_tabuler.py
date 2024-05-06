@@ -19,18 +19,18 @@ prefix = """
     table.header[*Model*][*ROC-AUC*][*Accuracy*],
     table.hline(y: 0, stroke: 1pt),
     table.hline(),
-)
 """
 
 suffix = """    table.hline(stroke: 1pt),
+  )
 )
 """
 body = []
-output_filename = "./output.typ"
+output_filename = "./output_data.typ"
 
 
 f_round = lambda x: round(x, 4)
-with io.open("./data1.json", "r") as f_json:
+with io.open("./data.json", "r") as f_json:
     data = json.load(f_json)
     for slice in data:
         model_name, metrics, _, _, _ = slice
