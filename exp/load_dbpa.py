@@ -112,7 +112,7 @@ class DBPA_Dataset:
 
         return df
 
-    def load_dataset(self, drop_zero_cols=False, scaler_transform=False, subset=1):
+    def load_dataset(self, drop_zero_cols=False, scaler_transform=True, subset=1):
         basepath = self.basepath
         train_specs = self.train_specs
         test_specs = self.test_specs
@@ -168,29 +168,56 @@ class DBPA_Dataset:
         logs("after drop timestamp", dfs_train)
 
         if scaler_transform:
-            combined_train_df = pd.concat(dfs_train, ignore_index=True, axis=0)
-            print("combined train df", combined_train_df.shape)
-            print(set(a for a in combined_train_df.iloc[:, -1]))
-            features_train = combined_train_df.iloc[:, :-1]
+            dfs_all = dfs_train + dfs_test
+            combined_all_df = pd.concat(dfs_all, ignore_index=True, axis=0)
+            df_train_lengths = [len(df) for df in dfs_train]
+            df_test_lengths = [len(df) for df in dfs_test]
+            print("combined train df", combined_all_df.shape)
+            print(set(a for a in combined_all_df.iloc[:, -1]))
+            features_all = combined_all_df.iloc[:, :-1].copy()
+            labels_all = combined_all_df.iloc[:, -1].copy()
 
             scaler = StandardScaler()
-            scaler.fit(features_train)
+            scaler.fit_transform(features_all)
 
-            dfs_train_transformed = [
-                pd.DataFrame(
-                    scaler.transform(df.iloc[:, :-1]), columns=df.columns[:-1]
-                ).assign(label=df.iloc[:, -1])
-                for df in dfs_train
-            ]
-            dfs_train = dfs_train_transformed
+            start_idx = 0
+            dfs_train_new = []
+            for i in range(len(df_train_lengths)):
+                dfs_train_new.append(
+                    pd.concat(
+                        [
+                            features_all.iloc[
+                                start_idx : start_idx + df_train_lengths[i], :
+                            ],
+                            labels_all.iloc[
+                                start_idx : start_idx + df_train_lengths[i]
+                            ],
+                        ],
+                        axis=1,
+                    )
+                )
+                start_idx += df_train_lengths[i]
+
+            dfs_train = dfs_train_new
+
+            dfs_test_new = []
+            for i in range(len(df_test_lengths)):
+                dfs_test_new.append(
+                    pd.concat(
+                        [
+                            features_all.iloc[
+                                start_idx : start_idx + df_test_lengths[i], :
+                            ],
+                            labels_all.iloc[start_idx : start_idx + df_test_lengths[i]],
+                        ],
+                        axis=1,
+                    )
+                )
+                start_idx += df_test_lengths[i]
+
+            dfs_test = dfs_test_new
+
             logs("dfs_train after transform", dfs_train)
-
-            dfs_test = [
-                pd.DataFrame(
-                    scaler.transform(df[df.columns[:-1]]), columns=df.columns[:-1]
-                ).assign(label=df.iloc[:, -1])
-                for df in dfs_test
-            ]
             logs("dfs_test after transform", dfs_test)
 
         dfs_train_all = dfs_train
