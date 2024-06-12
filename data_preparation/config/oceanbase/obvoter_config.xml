@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<parameters>
+
+    <!-- Connection details -->
+    <dbtype>MYSQL
+    </dbtype>
+    <driver>com.mysql.jdbc.Driver</driver>
+    <DBUrl>
+        jdbc:mysql://127.0.0.1:12883/voter?rewriteBatchedStatements=true&amp;allowPublicKeyRetrieval=True&amp;sslMode=DISABLED
+    </DBUrl>
+    <!-- <username>root@sys</username>
+    <password>hoVNpg8CNXM9bZdqTUaL</password> -->
+    <username>root@test</username>
+    <password></password>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
+    <batchsize>128</batchsize>
+
+    <scalefactor>10000</scalefactor>
+
+    <!-- The workload -->
+    <terminals>64</terminals>
+    <works>
+        <work>
+            <time>600000</time>
+            <rate>unlimited</rate>
+            <weights>100</weights>
+        </work>
+    </works>
+
+    <!-- Voter Procedures declaration -->
+    <transactiontypes>
+        <transactiontype>
+            <name>Vote</name>
+        </transactiontype>
+    </transactiontypes>
+</parameters>
