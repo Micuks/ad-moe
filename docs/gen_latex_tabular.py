@@ -2,42 +2,6 @@ import json
 import os
 import io
 
-# Sample JSON data as a list of entries
-data = [
-    [
-        "IForest",
-        {
-            "val_auc": 0.9544715447154472,
-            "val_acc": 0.7321428571428571,
-            "val_recall": 0.0,
-            "val_f1": 0.0,
-            "test_auc": 0.4511637548449207,
-            "test_acc": 0.2886416861826698,
-            "test_recall": 0.0,
-            "test_f1": 0.0,
-        },
-        0.2879786491394043,
-        0.03004312515258789,
-        0.3106415271759033,
-    ],
-    [
-        "CBLOF",
-        {
-            "val_auc": 0.5967479674796747,
-            "val_acc": 0.26785714285714285,
-            "val_recall": 1.0,
-            "val_f1": 0.4225352112676056,
-            "test_auc": 0.3832513905235715,
-            "test_acc": 0.7113583138173302,
-            "test_recall": 1.0,
-            "test_f1": 0.8313376667807048,
-        },
-        2.4187216758728027,
-        0.13985180854797363,
-        0.10178685188293457,
-    ],
-]
-
 # Start building the LaTeX tabular
 latex_table = r"""\begin{table}[htbp!]
 \centering
@@ -49,7 +13,7 @@ latex_table = r"""\begin{table}[htbp!]
 \midrule
 """
 
-in_filename = "../results/data_baselines_dbpa.json"
+in_filename = "../results/data2024-05-06 21:57:31.115958.json"
 output_filename = "./output_" + os.path.basename(in_filename) + ".txt"
 f_round = lambda x: round(x, 4)
 

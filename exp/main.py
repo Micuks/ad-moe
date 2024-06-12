@@ -20,10 +20,12 @@ from datetime import datetime
 
 def main():
     seed = 42
-    epochs = 5
+    epochs = 50
     subset = 0.1
     logs_interval = 5
-    expert_type = "autoencoder"  # or 'mlp'
+    scaler_transform = True
+    expert_type = "mlp"  # 'autoencoder' or 'mlp'
+    dataset = "dbpa"  # 'dbpa' or "ob"
     results = []
 
     # # Train model w/o meta-learning
@@ -34,6 +36,8 @@ def main():
         epochs=epochs,
         logs_interval=logs_interval,
         expert_type=expert_type,
+        scaler_transform=scaler_transform,
+        dataset_name=dataset,
     )
     # train_eval_baselines_vanilla(results, seed)
 
@@ -45,6 +49,8 @@ def main():
         epochs=epochs,
         logs_interval=logs_interval,
         expert_type=expert_type,
+        scaler_transform=scaler_transform,
+        dataset_name=dataset,
     )
 
     d = datetime.now()

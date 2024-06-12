@@ -120,19 +120,6 @@ def evaluate_model(name: str, scores, y_truth, x_original=None, threshold=0.5):
     return (auc, acc, recall, f1)
 
 
-def evaluate_autoencoder_model(name: str, reconstructions, originals, threshold):
-    threshold = calculate_threshold(reconstructions)
-
-    if not isinstance(reconstructions, np.ndarray):
-        reconstructions = np.array(reconstructions)
-    if not isinstance(originals, np.ndarray):
-        originals = np.array(originals)
-
-    mse = mean_squared_error(originals, reconstructions)
-    predict_labels = lambda mse, threshold=0.5: (mse > threshold).astype(int)
-    y_pred = predict_labels(mse, threshold)
-
-
 def model_fit(
     model_name: str,
     model_class,
@@ -342,8 +329,14 @@ def train_eval_mymodel_vanilla(
     subset=1,
     epochs=50,
     logs_interval=10,
+    scaler_transform=True,
+    dataset_name="dbpa",
 ):
-    X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla(subset=subset)
+    X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_vanilla(
+        subset=subset,
+        scaler_transform=scaler_transform,
+        dataset_name=dataset_name,
+    )
 
     model = MoEAnomalyDetection
     print(expert_type)
@@ -373,9 +366,18 @@ def train_eval_mymodel_vanilla(
 
 
 def train_eval_mymodel_meta(
-    results: list, seed: int, subset=1, epochs=50, logs_interval=10, expert_type="mlp"
+    results: list,
+    seed: int,
+    subset=1,
+    epochs=50,
+    logs_interval=10,
+    expert_type="mlp",
+    scaler_transform=True,
+    dataset_name="dbpa",
 ):
-    train_datasets, test_datasets = prepare_data_meta_training(subset=subset)
+    train_datasets, test_datasets = prepare_data_meta_training(
+        subset=subset, scaler_transform=scaler_transform, dataset_name=dataset_name
+    )
     model = MoEAnomalyDetection
     model_name = get_mymodel_name(expert_type)
     fit_time, val_predict_time, test_predict_time, metrics = model_meta_fit(

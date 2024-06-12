@@ -9,12 +9,18 @@ import logging
 logger = logging.getLogger("prepare_data")
 
 
-def prepare_data_vanilla(subset=1):
-    dataset = OceanBase_Dataset(anomaly_ratio=0.2)
-    # dataset = DBPA_Dataset(anomaly_ratio=0.2)
+def prepare_data_vanilla(
+    subset=1,
+    scaler_transform=True,
+    dataset_name="dbpa",
+):
+    if dataset_name == "dbpa":
+        dataset = DBPA_Dataset(anomaly_ratio=0.2)
+    elif dataset_name == "ob":
+        dataset = OceanBase_Dataset(anomaly_ratio=0.2)
     # dfs_train_all, dfs_test_all = ob_dataset.load_dataset(drop_zero_cols=True)
     dfs_train_all, dfs_test_all = dataset.load_dataset(
-        subset=subset, drop_zero_cols=False
+        subset=subset, drop_zero_cols=False, scaler_transform=scaler_transform
     )
 
     # First test those models without meta-learning
@@ -67,13 +73,21 @@ class TaskSpecificDataset(Dataset):
         return self.data[index], self.labels[index]
 
 
-def prepare_data_meta_training(subset=False):
+def prepare_data_meta_training(
+    subset=False,
+    scaler_transform=True,
+    dataset_name="dbpa",
+):
     """
     Task-specific meta-training
     """
-    dataset = OceanBase_Dataset(anomaly_ratio=0.2)
-    # dataset = DBPA_Dataset(anomaly_ratio=0.2)
-    dfs_train_all, dfs_test_all = dataset.load_dataset(subset=subset)
+    if dataset_name == "ob":
+        dataset = OceanBase_Dataset(anomaly_ratio=0.2)
+    elif dataset_name == "dbpa":
+        dataset = DBPA_Dataset(anomaly_ratio=0.2)
+    dfs_train_all, dfs_test_all = dataset.load_dataset(
+        subset=subset, scaler_transform=scaler_transform
+    )
     train_datasets = [TaskSpecificDataset(df) for df in dfs_train_all]
     test_datasets = [TaskSpecificDataset(df) for df in dfs_test_all]
 

@@ -8,3 +8,6 @@ libstdc++.so.6
 docs/*.json
 docs/*.typ
 results/*
+*.txt
+*.typ
+*.tar.gz
